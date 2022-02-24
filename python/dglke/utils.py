@@ -297,3 +297,5 @@ class CommonArgParser(argparse.ArgumentParser):
                           help='The coefficient for regularization.')
         self.add_argument('-rn', '--regularization_norm', type=int, default=3,
                           help='norm used in regularization.')
+        self.add_argument('-diag', '--diag', action='store_true',
+                          help='diag for Wr of TransR')

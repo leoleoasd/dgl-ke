@@ -235,12 +235,18 @@ class KEModel(object):
         elif model_name == 'TransE_l1':
             self.score_func = TransEScore(gamma, 'l1')
         elif model_name == 'TransR':
-            projection_emb = ExternalEmbedding(args,
-                                               n_relations,
-                                               entity_dim * relation_dim,
-                                               F.cpu() if args.mix_cpu_gpu else device)
+            if not args.diag:
+                projection_emb = ExternalEmbedding(args,
+                                                n_relations,
+                                                entity_dim * relation_dim,
+                                                F.cpu() if args.mix_cpu_gpu else device)
+            else:
+                projection_emb = ExternalEmbedding(args,
+                                                n_relations,
+                                                entity_dim,
+                                                F.cpu() if args.mix_cpu_gpu else device)               
 
-            self.score_func = TransRScore(gamma, projection_emb, relation_dim, entity_dim)
+            self.score_func = TransRScore(gamma, projection_emb, relation_dim, entity_dim, diag=args.diag, ord=2)
         elif model_name == 'DistMult':
             self.score_func = DistMultScore()
         elif model_name == 'ComplEx':
@@ -298,9 +304,14 @@ class KEModel(object):
         dataset : str
             Dataset name as prefix to the saved embeddings.
         """
-        self.entity_emb.load(path, dataset+'_'+self.model_name+'_entity')
-        self.relation_emb.load(path, dataset+'_'+self.model_name+'_relation')
-        self.score_func.load(path, dataset+'_'+self.model_name)
+        if self.strict_rel_part or self.soft_rel_part:        
+            self.entity_emb.load(path, dataset+'_'+self.model_name+'_entity')
+            self.global_relation_emb.load(path, dataset+'_'+self.model_name+'_relation')
+            self.score_func.load(path, dataset+'_'+self.model_name)
+        else:
+            self.entity_emb.load(path, dataset+'_'+self.model_name+'_entity')
+            self.relation_emb.load(path, dataset+'_'+self.model_name+'_relation')
+            self.score_func.load(path, dataset+'_'+self.model_name)            
 
     def reset_parameters(self):
         """Re-initialize the model.

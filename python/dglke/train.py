@@ -21,10 +21,12 @@ import os
 import logging
 import time
 
-from .dataloader import EvalDataset, TrainDataset, NewBidirectionalOneShotIterator
+from .dataloader import EvalDataset, TrainDataset, TrainDatasetPath, NewBidirectionalOneShotIterator
 from .dataloader import get_dataset
-
+from .train_pytorch import load_model_from_checkpoint
 from .utils import get_compatible_batch_size, save_model, CommonArgParser
+
+from IPython import embed
 
 backend = os.environ.get('DGLBACKEND', 'pytorch')
 if backend.lower() == 'mxnet':
@@ -59,7 +61,8 @@ class ArgParser(CommonArgParser):
                           help='Allow providing edge importance score for each edge during training.'\
                                   'The positive score will be adjusted '\
                                   'as pos_score = pos_score * edge_importance')
-
+        self.add_argument('--model_path', type=str, default='ckpts',
+                          help='The path of the directory where models are saved.')
 def prepare_save_path(args):
     if not os.path.exists(args.save_path):
         os.mkdir(args.save_path)
@@ -107,7 +110,11 @@ def main():
         assert not args.eval_filter, "if negative sampling based on degree, we can't filter positive edges."
 
     args.soft_rel_part = args.mix_cpu_gpu and args.rel_part
-    train_data = TrainDataset(dataset, args, ranks=args.num_proc, has_importance=args.has_edge_importance)
+    if 'path' in args.format:
+        train_data = TrainDatasetPath(dataset, args, ranks=args.num_proc, has_importance=args.has_edge_importance)
+        embed()
+    else:
+        train_data = TrainDataset(dataset, args, ranks=args.num_proc, has_importance=args.has_edge_importance)
     # if there is no cross partition relaiton, we fall back to strict_rel_part
     args.strict_rel_part = args.mix_cpu_gpu and (train_data.cross_part == False)
     args.num_workers = 8 # fix num_worker to 8
@@ -245,8 +252,23 @@ def main():
                                                             num_workers=args.num_workers,
                                                             rank=0, ranks=1)
 
-    # load model
-    model = load_model(args, dataset.n_entities, dataset.n_relations)
+
+    
+    ckpt_path = args.model_path
+    if ckpt_path!='ckpts':
+        model = load_model(args, dataset.n_entities, dataset.n_relations)
+        model.load_emb(ckpt_path,args.dataset)
+        # args.strict_rel_part = False
+        # args.soft_rel_part = False
+        # args.async_update = False
+        # args.has_edge_importance = False      
+        # ckpt_path = args.model_path
+        # model = load_model_from_checkpoint(args, dataset.n_entities, dataset.n_relations, ckpt_path)        
+
+    else:
+        # load model
+        model = load_model(args, dataset.n_entities, dataset.n_relations)       
+
     if args.num_proc > 1 or args.async_update:
         model.share_memory()
 

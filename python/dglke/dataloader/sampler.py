@@ -289,6 +289,42 @@ def RandomPartition(edges, n, has_importance=False):
         print('part {} has {} edges'.format(i, len(parts[-1])))
     return parts
 
+def RandomPartitionPath(edges, n, has_importance=False):
+    """This partitions a list of edges randomly across n partitions
+
+    Parameters
+    ----------
+    edges : (heads, rels, tails, n_rel, n_tails) triple
+        Edge list to partition
+    n : int
+        number of partitions
+
+    Returns
+    -------
+    List of np.array
+        Edges of each partition
+    """
+    if has_importance:
+        raise Exception("Not supported")
+    else:
+        heads, rels, tails, n_rels, n_tails = edges
+    print('random partition {} edges into {} parts'.format(len(heads), n))
+    idx = np.random.permutation(len(heads))
+    heads[:] = heads[idx]
+    rels[:] = rels[idx]
+    tails[:] = tails[idx]
+    n_rels[:] = n_rels[idx]
+    n_tails[:] = n_tails[idx]
+
+    part_size = int(math.ceil(len(idx) / n))
+    parts = []
+    for i in range(n):
+        start = part_size * i
+        end = min(part_size * (i + 1), len(idx))
+        parts.append(idx[start:end])
+        print('part {} has {} edges'.format(i, len(parts[-1])))
+    return parts
+
 def ConstructGraph(edges, n_entities, args):
     """Construct Graph for training
 
@@ -306,7 +342,7 @@ def ConstructGraph(edges, n_entities, args):
     else:
         src, etype_id, dst = edges
     coo = sp.sparse.coo_matrix((np.ones(len(src)), (src, dst)), shape=[n_entities, n_entities])
-    g = dgl.DGLGraph(coo, readonly=True, multigraph=True, sort_csr=True)
+    g = dgl.DGLGraph(coo, readonly=True, multigraph=True, sort_csr=False)
     g.edata['tid'] = F.tensor(etype_id, F.int64)
     if args.has_edge_importance:
         g.edata['impts'] = F.tensor(e_impts, F.float32)
@@ -341,6 +377,84 @@ class TrainDataset(object):
             self.cross_part = False
 
         self.g = ConstructGraph(triples, dataset.n_entities, args)
+
+    def create_sampler(self, batch_size, neg_sample_size=2, neg_chunk_size=None, mode='head', num_workers=32,
+                       shuffle=True, exclude_positive=False, rank=0):
+        """Create sampler for training
+
+        Parameters
+        ----------
+        batch_size : int
+            Batch size of each mini batch.
+        neg_sample_size : int
+            How many negative edges sampled for each node.
+        neg_chunk_size : int
+            How many edges in one chunk. We split one batch into chunks.
+        mode : str
+            Sampling mode.
+        number_workers: int
+            Number of workers used in parallel for this sampler
+        shuffle : bool
+            If True, shuffle the seed edges.
+            If False, do not shuffle the seed edges.
+            Default: False
+        exclude_positive : bool
+            If True, exlucde true positive edges in sampled negative edges
+            If False, return all sampled negative edges even there are positive edges
+            Default: False
+        rank : int
+            Which partition to sample.
+
+        Returns
+        -------
+        dgl.contrib.sampling.EdgeSampler
+            Edge sampler
+        """
+        EdgeSampler = getattr(dgl.contrib.sampling, 'EdgeSampler')
+        assert batch_size % neg_sample_size == 0, 'batch_size should be divisible by B'
+        return EdgeSampler(self.g,
+                           seed_edges=F.tensor(self.edge_parts[rank]),
+                           batch_size=batch_size,
+                           neg_sample_size=int(neg_sample_size/neg_chunk_size),
+                           chunk_size=neg_chunk_size,
+                           negative_mode=mode,
+                           num_workers=num_workers,
+                           shuffle=shuffle,
+                           exclude_positive=exclude_positive,
+                           return_false_neg=False)
+
+
+class TrainDatasetPath(object):
+    """Dataset for training
+
+    Parameters
+    ----------
+    dataset : KGDatasetUDDRawPath
+        Original dataset.
+    args :
+        Global configs.
+    ranks:
+        Number of partitions.
+    """
+    def __init__(self, dataset, args, ranks=64, has_importance=False):
+        triples = dataset.train
+        num_train = len(triples[0])
+        print('|Train|:', num_train)
+
+        if ranks > 1 and args.rel_part:
+            raise Exception("Rel_PART on PTransE isn't supported")
+            self.edge_parts, self.rel_parts, self.cross_part, self.cross_rels = \
+            SoftRelationPartition(triples, ranks, has_importance=has_importance)
+        elif ranks > 1:
+            self.edge_parts = RandomPartitionPath(triples, ranks, has_importance=has_importance)
+            self.cross_part = True
+        else:
+            self.edge_parts = [np.arange(num_train)]
+            self.rel_parts = [np.arange(dataset.n_relations)]
+            self.cross_part = False
+
+        self.g = ConstructGraph(triples[0:3], dataset.n_entities, args)
+        self.g_2 = ConstructGraph(triples[2:5], dataset.n_entities, args)
 
     def create_sampler(self, batch_size, neg_sample_size=2, neg_chunk_size=None, mode='head', num_workers=32,
                        shuffle=True, exclude_positive=False, rank=0):
