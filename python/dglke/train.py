@@ -20,6 +20,7 @@
 import os
 import logging
 import time
+import wandb
 
 from .dataloader import EvalDataset, TrainDataset, TrainDatasetPath, NewBidirectionalOneShotIterator
 from .dataloader import get_dataset
@@ -78,7 +79,9 @@ def prepare_save_path(args):
 def main():
     args = ArgParser().parse_args()
     prepare_save_path(args)
-
+    wandb.init(project="dgl-ke", entity="leoleoasd", config=args)
+    args = wandb.config
+    
     init_time_start = time.time()
     # load dataset and samplers
     dataset = get_dataset(args.data_path,
@@ -335,6 +338,7 @@ def main():
 
             for metric in logs[0].keys():
                 metrics[metric] = sum([log[metric] for log in logs]) / len(logs)
+            wandb.log(metric)
             print("-------------- Test result --------------")
             for k, v in metrics.items():
                 print('Test average {} : {}'.format(k, v))
