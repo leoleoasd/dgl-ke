@@ -266,7 +266,7 @@ class CommonArgParser(argparse.ArgumentParser):
                           help='Print evaluation results on the validation dataset every x steps'\
                                   'if validation is turned on')
         self.add_argument('--test', action='store_true',
-                          help='Evaluate the model on the test set after the model is trained.')
+                          help='Evaluate the model on the test set after the model is trained.', default=True)
         self.add_argument('--num_proc', type=int, default=1,
                           help='The number of processes to train the model in parallel.'\
                                   'In multi-GPU training, the number of processes by default is set to match the number of GPUs.'\
@@ -290,7 +290,7 @@ class CommonArgParser(argparse.ArgumentParser):
                           help='Double relation dim for complex number.')
         self.add_argument('-adv', '--neg_adversarial_sampling', action='store_true',
                           help='Indicate whether to use negative adversarial sampling.'\
-                                  'It will weight negative samples with higher scores more.')
+                                  'It will weight negative samples with higher scores more.', default=True)
         self.add_argument('-a', '--adversarial_temperature', default=1.0, type=float,
                           help='The temperature used for negative adversarial sampling.')
         self.add_argument('-rc', '--regularization_coef', type=float, default=0.000002,

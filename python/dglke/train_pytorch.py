@@ -21,6 +21,7 @@ import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 import torch.optim as optim
 import torch as th
+import wandb
 
 from distutils.version import LooseVersion
 TH_VERSION = LooseVersion(th.__version__)
@@ -161,6 +162,7 @@ def train(args, model, train_sampler, valid_samplers=None, rank=0, rel_parts=Non
             barrier.wait()
 
         if (step + 1) % args.log_interval == 0:
+            wandb.log(log)
             if (client is not None) and (client.get_machine_id() != 0):
                 pass
             else:
@@ -217,6 +219,7 @@ def test(args, model, test_samplers, rank=0, mode='Test', queue=None):
         if len(logs) > 0:
             for metric in logs[0].keys():
                 metrics[metric] = sum([log[metric] for log in logs]) / len(logs)
+        wandb.log(metrics)
         if queue is not None:
             queue.put(logs)
         else:

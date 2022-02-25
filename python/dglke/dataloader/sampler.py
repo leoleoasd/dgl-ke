@@ -366,9 +366,9 @@ def ConstructGraphPath(edges, n_entities, args):
     # embed()
     g = dgl.DGLGraph(coo, readonly=True, multigraph=True, sort_csr=False)
     g.edata['tid'] = F.tensor(etype_id, F.int64)
-    g.edata['n_rels'] = n_rels
-    g.edata['n_tails'] = n_tails
-    g.edata['tails'] = dst
+    g.edata['n_rels'] = F.tensor(n_rels, F.int64)
+    g.edata['n_tails'] = F.tensor(n_tails, F.int64)
+    g.edata['tails'] = F.tensor(dst, F.int64)
     return g
 
 class TrainDataset(object):
