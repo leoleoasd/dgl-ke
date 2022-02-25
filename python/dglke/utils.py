@@ -212,7 +212,7 @@ class CommonArgParser(argparse.ArgumentParser):
         super(CommonArgParser, self).__init__()
 
         self.add_argument('--model_name', default='TransE',
-                          choices=['TransE', 'TransE_l1', 'TransE_l2', 'TransR',
+                          choices=['TransE', 'TransE_l1', 'TransE_l2', 'TransR', 'PTransE',
                                    'RESCAL', 'DistMult', 'ComplEx', 'RotatE'],
                           help='The models provided by DGL-KE.')
         self.add_argument('--data_path', type=str, default='data',

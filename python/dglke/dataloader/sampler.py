@@ -342,10 +342,33 @@ def ConstructGraph(edges, n_entities, args):
     else:
         src, etype_id, dst = edges
     coo = sp.sparse.coo_matrix((np.ones(len(src)), (src, dst)), shape=[n_entities, n_entities])
-    g = dgl.DGLGraph(coo, readonly=True, multigraph=True, sort_csr=False)
+    g = dgl.DGLGraph(coo, readonly=True, multigraph=True, sort_csr=True)
     g.edata['tid'] = F.tensor(etype_id, F.int64)
     if args.has_edge_importance:
         g.edata['impts'] = F.tensor(e_impts, F.float32)
+    return g
+
+def ConstructGraphPath(edges, n_entities, args):
+    """Construct Graph for training
+
+    Parameters
+    ----------
+    edges : (heads, rels, tails, n_rels, n_tails) triple
+        Edge list
+    n_entities : int
+        number of entities
+    args :
+        Global configs.
+    """
+    src, etype_id, dst, n_rels, n_tails = edges
+    coo = sp.sparse.coo_matrix((np.ones(len(src)), (src, dst)), shape=[n_entities, n_entities])
+    # from IPython import embed
+    # embed()
+    g = dgl.DGLGraph(coo, readonly=True, multigraph=True, sort_csr=False)
+    g.edata['tid'] = F.tensor(etype_id, F.int64)
+    g.edata['n_rels'] = n_rels
+    g.edata['n_tails'] = n_tails
+    g.edata['tails'] = dst
     return g
 
 class TrainDataset(object):
@@ -453,8 +476,8 @@ class TrainDatasetPath(object):
             self.rel_parts = [np.arange(dataset.n_relations)]
             self.cross_part = False
 
-        self.g = ConstructGraph(triples[0:3], dataset.n_entities, args)
-        self.g_2 = ConstructGraph(triples[2:5], dataset.n_entities, args)
+        self.g = ConstructGraphPath(triples, dataset.n_entities, args)
+        # self.g_2 = ConstructGraph(triples[2:5], dataset.n_entities, args)
 
     def create_sampler(self, batch_size, neg_sample_size=2, neg_chunk_size=None, mode='head', num_workers=32,
                        shuffle=True, exclude_positive=False, rank=0):
@@ -841,6 +864,9 @@ class NewBidirectionalOneShotIterator:
                     continue
 
                 pos_g.ndata['id'] = pos_g.parent_nid
+                pos_g.edata['n_rels'] = pos_g._parent.edata['n_rels'][pos_g.parent_eid]
+                pos_g.edata['n_tails'] = pos_g._parent.edata['n_tails'][pos_g.parent_eid]
+                pos_g.edata['tails'] = pos_g._parent.edata['tails'][pos_g.parent_eid]
                 neg_g.ndata['id'] = neg_g.parent_nid
                 pos_g.edata['id'] = pos_g._parent.edata['tid'][pos_g.parent_eid]
                 if has_edge_importance:

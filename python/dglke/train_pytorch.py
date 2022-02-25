@@ -41,6 +41,7 @@ import dgl.backend as F
 
 from .dataloader import EvalDataset
 from .dataloader import get_dataset
+from IPython import embed
 
 class KGEClient(KVClient):
     """User-defined kvclient for DGL-KGE
@@ -132,6 +133,7 @@ def train(args, model, train_sampler, valid_samplers=None, rank=0, rel_parts=Non
     for step in range(0, args.max_step):
         start1 = time.time()
         pos_g, neg_g = next(train_sampler)
+        # embed()
         sample_time += time.time() - start1
 
         if client is not None:

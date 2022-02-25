@@ -112,7 +112,7 @@ def main():
     args.soft_rel_part = args.mix_cpu_gpu and args.rel_part
     if 'path' in args.format:
         train_data = TrainDatasetPath(dataset, args, ranks=args.num_proc, has_importance=args.has_edge_importance)
-        embed()
+        # embed()
     else:
         train_data = TrainDataset(dataset, args, ranks=args.num_proc, has_importance=args.has_edge_importance)
     # if there is no cross partition relaiton, we fall back to strict_rel_part

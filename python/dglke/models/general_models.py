@@ -74,6 +74,8 @@ class InferModel(object):
             self.score_func = TransEScore(gamma, 'l2')
         elif model_name == 'TransE_l1':
             self.score_func = TransEScore(gamma, 'l1')
+        elif model_name == 'PTransE':
+            self.score_func = PTransEScore(gamma, 'l2')
         elif model_name == 'TransR':
             assert False, 'Do not support inference of TransR model now.'
         elif model_name == 'DistMult':
@@ -85,7 +87,9 @@ class InferModel(object):
         elif model_name == 'RotatE':
             emb_init = (gamma + EMB_INIT_EPS) / hidden_dim
             self.score_func = RotatEScore(gamma, emb_init)
-
+        else:
+            raise Exception()
+        
     def load_emb(self, path, dataset):
         """Load the model.
 
@@ -234,6 +238,8 @@ class KEModel(object):
             self.score_func = TransEScore(gamma, 'l2')
         elif model_name == 'TransE_l1':
             self.score_func = TransEScore(gamma, 'l1')
+        elif model_name == 'PTransE':
+            self.score_func = PTransEScore(gamma, 'l2')
         elif model_name == 'TransR':
             if not args.diag:
                 projection_emb = ExternalEmbedding(args,
@@ -496,8 +502,15 @@ class KEModel(object):
         dict
             loss info
         """
+        # embed()
         pos_g.ndata['emb'] = self.entity_emb(pos_g.ndata['id'], gpu_id, True)
         pos_g.edata['emb'] = self.relation_emb(pos_g.edata['id'], gpu_id, True)
+        try:
+            pos_g.edata['n_rels_emb'] = self.relation_emb(pos_g.edata['n_rels'], gpu_id, True)
+            pos_g.edata['n_tails_emb'] = self.entity_emb(pos_g.edata['n_tails'], gpu_id, True)
+            pos_g.edata['tails_emb'] = self.entity_emb(pos_g.edata['tails'], gpu_id, True)
+        except KeyError:
+            pass
 
         self.score_func.prepare(pos_g, gpu_id, True)
 

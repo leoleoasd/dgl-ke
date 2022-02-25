@@ -22,6 +22,7 @@ import torch.nn as nn
 import torch.nn.functional as functional
 import torch.nn.init as INIT
 import numpy as np
+from IPython import embed
 
 def batched_l2_dist(a, b):
     a_squared = a.norm(dim=-1).pow(2)
@@ -75,6 +76,84 @@ class TransEScore(nn.Module):
 
     def forward(self, g):
         g.apply_edges(lambda edges: self.edge_func(edges))
+
+    def update(self, gpu_id=-1):
+        pass
+
+    def reset_parameters(self):
+        pass
+
+    def save(self, path, name):
+        pass
+
+    def load(self, path, name):
+        pass
+
+    def create_neg(self, neg_head):
+        gamma = self.gamma
+        if neg_head:
+            def fn(heads, relations, tails, num_chunks, chunk_size, neg_sample_size):
+                hidden_dim = heads.shape[1]
+                heads = heads.reshape(num_chunks, neg_sample_size, hidden_dim)
+                tails = tails - relations
+                tails = tails.reshape(num_chunks, chunk_size, hidden_dim)
+                return gamma - self.neg_dist_func(tails, heads)
+            return fn
+        else:
+            def fn(heads, relations, tails, num_chunks, chunk_size, neg_sample_size):
+                hidden_dim = heads.shape[1]
+                heads = heads + relations
+                heads = heads.reshape(num_chunks, chunk_size, hidden_dim)
+                tails = tails.reshape(num_chunks, neg_sample_size, hidden_dim)
+                return gamma - self.neg_dist_func(heads, tails)
+            return fn
+
+class PTransEScore(nn.Module):
+    """TransE score function
+    Paper link: https://papers.nips.cc/paper/5071-translating-embeddings-for-modeling-multi-relational-data
+    """
+    def __init__(self, gamma, dist_func='l2'):
+        super(PTransEScore, self).__init__()
+        self.gamma = gamma
+        if dist_func == 'l1':
+            self.neg_dist_func = batched_l1_dist
+            self.dist_ord = 1
+        else: # default use l2
+            self.neg_dist_func = batched_l2_dist
+            self.dist_ord = 2
+
+    def infer(self, head_emb, rel_emb, tail_emb):
+        head_emb = head_emb.unsqueeze(1)
+        rel_emb = rel_emb.unsqueeze(0)
+        score = (head_emb + rel_emb).unsqueeze(2) - tail_emb.unsqueeze(0).unsqueeze(0)
+
+        return self.gamma - th.norm(score, p=self.dist_ord, dim=-1)
+
+    def prepare(self, g, gpu_id, trace=False):
+        pass
+
+    def create_neg_prepare(self, neg_head):
+        def fn(rel_id, num_chunks, head, tail, gpu_id, trace=False):
+            return head, tail
+        return fn
+
+    def forward(self, g):
+        # embed()
+        def edge_func(edges):
+            head = edges.src['emb']
+            tail = edges.dst['emb']
+            rel = edges.data['emb']
+            # assert th.eq(tail, edges.data['tails_emb'])
+            score = head + rel - tail
+            # PtransE Score
+            try:
+                pscore = head + rel + edges.data['n_rels_emb'] - edges.data['n_tails_emb']
+                return {'score': self.gamma - th.norm(score, p=self.dist_ord, dim=-1) - th.norm(pscore, p=self.dist_ord, dim=-1)}
+            except KeyError:
+                # we are evaluating
+                return {'score': self.gamma - th.norm(score, p=self.dist_ord, dim=-1)}
+        # embed()
+        g.apply_edges(edge_func)
 
     def update(self, gpu_id=-1):
         pass
