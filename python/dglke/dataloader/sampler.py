@@ -360,7 +360,7 @@ def ConstructGraphPath(edges, n_entities, args):
     args :
         Global configs.
     """
-    src, etype_id, dst, n_rels, n_tails = edges
+    src, etype_id, dst, n_rels, n_tails, n_i = edges
     coo = sp.sparse.coo_matrix((np.ones(len(src)), (src, dst)), shape=[n_entities, n_entities])
     # from IPython import embed
     # embed()
@@ -369,6 +369,7 @@ def ConstructGraphPath(edges, n_entities, args):
     g.edata['n_rels'] = F.tensor(n_rels, F.int64)
     g.edata['n_tails'] = F.tensor(n_tails, F.int64)
     g.edata['tails'] = F.tensor(dst, F.int64)
+    g.edata['imp'] = F.tensor(n_i, F.float32)
     return g
 
 class TrainDataset(object):

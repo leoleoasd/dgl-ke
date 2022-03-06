@@ -148,7 +148,7 @@ class PTransEScore(nn.Module):
             # PtransE Score
             try:
                 pscore = head + rel + edges.data['n_rels_emb'] - edges.data['n_tails_emb']
-                return {'score': self.gamma - th.norm(score, p=self.dist_ord, dim=-1) - th.norm(pscore, p=self.dist_ord, dim=-1)}
+                return {'score': self.gamma - th.norm(score, p=self.dist_ord, dim=-1) - edges.data['imp'] * th.norm(pscore, p=self.dist_ord, dim=-1)}
             except KeyError:
                 # we are evaluating
                 return {'score': self.gamma - th.norm(score, p=self.dist_ord, dim=-1)}

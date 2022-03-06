@@ -509,6 +509,7 @@ class KEModel(object):
             pos_g.edata['n_rels_emb'] = self.relation_emb(pos_g.edata['n_rels'], gpu_id, True)
             pos_g.edata['n_tails_emb'] = self.entity_emb(pos_g.edata['n_tails'], gpu_id, True)
             pos_g.edata['tails_emb'] = self.entity_emb(pos_g.edata['tails'], gpu_id, True)
+            pos_g.edata['imp'] = pos_g.edata['imp']
         except KeyError:
             pass
 

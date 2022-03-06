@@ -581,17 +581,19 @@ class KGDatasetUDDRawPath(KGDataset):
             n_rels = []
             n_tails = []
             e_impts = []
+            n_importance = []
             with open(path) as f:
                 if skip_first_line:
                     _ = f.readline()
                 for line in f:
                     triple = line.strip().split(self.delimiter)
-                    h, r, t, n_r, n_t = triple[format[0]], triple[format[1]], triple[format[2]], triple[format[3]], triple[format[4]]
+                    h, r, t, n_r, n_t, n_i = triple[format[0]], triple[format[1]], triple[format[2]], triple[format[3]], triple[format[4]], triple[5]
                     heads.append(self.entity2id[h])
                     rels.append(self.relation2id[r])
                     tails.append(self.entity2id[t])
                     n_rels.append(self.relation2id[n_r])
                     n_tails.append(self.entity2id[n_t])
+                    n_importance.append(n_i)
                     if self.has_edge_importance:
                         e_impts.append(float(triple[3]))
             heads = np.array(heads, dtype=np.int64)
@@ -599,6 +601,8 @@ class KGDatasetUDDRawPath(KGDataset):
             rels = np.array(rels, dtype=np.int64)
             n_rels = np.array(n_rels, dtype=np.int64)
             n_tails = np.array(n_tails, dtype=np.int64)
+            n_importance = np.array(n_importance, dtype=np.float64)
+            
 
             print('Finished. Read {} {} triples.'.format(len(heads), mode))
             if self.has_edge_importance:
@@ -608,7 +612,7 @@ class KGDatasetUDDRawPath(KGDataset):
                 assert np.min(e_impts) > 0., 'Edge importance score should > 0'
                 return (heads, rels, tails, e_impts)
 
-            return (heads, rels, tails, n_rels, n_tails)
+            return (heads, rels, tails, n_rels, n_tails, n_importance)
         else:
             heads = []
             tails = []
