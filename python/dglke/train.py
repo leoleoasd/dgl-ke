@@ -22,7 +22,7 @@ import logging
 import time
 import wandb
 
-from .dataloader import EvalDataset, TrainDataset, TrainDatasetPath, NewBidirectionalOneShotIterator
+from .dataloader import EvalDataset, TrainDataset, NewBidirectionalOneShotIterator
 from .dataloader import get_dataset
 from .train_pytorch import load_model_from_checkpoint
 from .utils import get_compatible_batch_size, save_model, CommonArgParser
@@ -113,11 +113,7 @@ def main():
         assert not args.eval_filter, "if negative sampling based on degree, we can't filter positive edges."
 
     args.soft_rel_part = args.mix_cpu_gpu and args.rel_part
-    if 'path' in args.format:
-        train_data = TrainDatasetPath(dataset, args, ranks=args.num_proc, has_importance=args.has_edge_importance)
-        embed()
-    else:
-        train_data = TrainDataset(dataset, args, ranks=args.num_proc, has_importance=args.has_edge_importance)
+    train_data = TrainDataset(dataset, args, ranks=args.num_proc, has_importance=args.has_edge_importance)
     # if there is no cross partition relaiton, we fall back to strict_rel_part
     args.strict_rel_part = args.mix_cpu_gpu and (train_data.cross_part == False)
     args.num_workers = 8 # fix num_worker to 8
