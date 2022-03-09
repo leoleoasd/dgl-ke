@@ -237,7 +237,7 @@ class TransRScore(nn.Module):
         if neg_head:
             def fn(heads, relations, tails, num_chunks, chunk_size, neg_sample_size):
                 relations = relations.reshape(num_chunks, -1, self.relation_dim)
-                tails = tails + relations
+                tails = tails - relations
                 tails = tails.reshape(num_chunks, -1, 1, self.relation_dim)
                 score = heads - tails
                 return gamma - th.norm(score, p=self.ord, dim=-1)
@@ -245,7 +245,7 @@ class TransRScore(nn.Module):
         else:
             def fn(heads, relations, tails, num_chunks, chunk_size, neg_sample_size):
                 relations = relations.reshape(num_chunks, -1, self.relation_dim)
-                heads = heads - relations
+                heads = heads + relations
                 heads = heads.reshape(num_chunks, -1, 1, self.relation_dim)
                 score = heads - tails
                 return gamma - th.norm(score, p=self.ord, dim=-1)
