@@ -835,15 +835,15 @@ class NewBidirectionalOneShotIterator:
         Total number of nodes in the whole graph.
     """
     def __init__(self, dataloader_head, dataloader_tail, neg_chunk_size, neg_sample_size,
-                 is_chunked, num_nodes, has_edge_importance=False):
+                 is_chunked, num_nodes, has_edge_importance=False, has_path=False):
         self.sampler_head = dataloader_head
         self.sampler_tail = dataloader_tail
         self.iterator_head = self.one_shot_iterator(dataloader_head, neg_chunk_size,
                                                     neg_sample_size, is_chunked,
-                                                    True, num_nodes, has_edge_importance)
+                                                    True, num_nodes, has_edge_importance, has_path)
         self.iterator_tail = self.one_shot_iterator(dataloader_tail, neg_chunk_size,
                                                     neg_sample_size, is_chunked,
-                                                    False, num_nodes, has_edge_importance)
+                                                    False, num_nodes, has_edge_importance, has_path)
         self.step = 0
 
     def __next__(self):
@@ -856,7 +856,7 @@ class NewBidirectionalOneShotIterator:
 
     @staticmethod
     def one_shot_iterator(dataloader, neg_chunk_size, neg_sample_size, is_chunked,
-                          neg_head, num_nodes, has_edge_importance=False):
+                          neg_head, num_nodes, has_edge_importance=False, has_path=False):
         while True:
             for pos_g, neg_g in dataloader:
                 neg_g = create_neg_subgraph(pos_g, neg_g, neg_chunk_size, neg_sample_size,
@@ -865,11 +865,13 @@ class NewBidirectionalOneShotIterator:
                     continue
 
                 pos_g.ndata['id'] = pos_g.parent_nid
-                pos_g.edata['n_rels'] = pos_g._parent.edata['n_rels'][pos_g.parent_eid]
-                pos_g.edata['n_tails'] = pos_g._parent.edata['n_tails'][pos_g.parent_eid]
-                pos_g.edata['tails'] = pos_g._parent.edata['tails'][pos_g.parent_eid]
                 neg_g.ndata['id'] = neg_g.parent_nid
                 pos_g.edata['id'] = pos_g._parent.edata['tid'][pos_g.parent_eid]
+                if has_path:
+                    pos_g.edata['n_rels'] = pos_g._parent.edata['n_rels'][pos_g.parent_eid]
+                    pos_g.edata['n_tails'] = pos_g._parent.edata['n_tails'][pos_g.parent_eid]
+                    pos_g.edata['tails'] = pos_g._parent.edata['tails'][pos_g.parent_eid]
+                    pos_g.edata['imp'] = pos_g._parent.edata['imp'][pos_g.parent_eid]
                 if has_edge_importance:
                     pos_g.edata['impts'] = pos_g._parent.edata['impts'][pos_g.parent_eid]
                 yield pos_g, neg_g

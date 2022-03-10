@@ -240,7 +240,21 @@ class KEModel(object):
             self.score_func = TransEScore(gamma, 'l1')
         elif model_name == 'PTransE':
             self.score_func = PTransEScore(gamma, 'l2')
+            self.has_path = True
         elif model_name == 'TransR':
+            if not args.diag:
+                projection_emb = ExternalEmbedding(args,
+                                                n_relations,
+                                                entity_dim * relation_dim,
+                                                F.cpu() if args.mix_cpu_gpu else device)
+            else:
+                projection_emb = ExternalEmbedding(args,
+                                                n_relations,
+                                                entity_dim,
+                                                F.cpu() if args.mix_cpu_gpu else device)          
+
+            self.score_func = TransRScore(gamma, projection_emb, relation_dim, entity_dim, diag=args.diag, ord=2)
+        elif model_name == 'PTransR':
             if not args.diag:
                 projection_emb = ExternalEmbedding(args,
                                                 n_relations,
@@ -252,7 +266,8 @@ class KEModel(object):
                                                 entity_dim,
                                                 F.cpu() if args.mix_cpu_gpu else device)               
 
-            self.score_func = TransRScore(gamma, projection_emb, relation_dim, entity_dim, diag=args.diag, ord=2)
+            self.score_func = PTransRScore(gamma, projection_emb, relation_dim, entity_dim, diag=args.diag, ord=2)
+            self.has_path = True
         elif model_name == 'DistMult':
             self.score_func = DistMultScore()
         elif model_name == 'ComplEx':
@@ -508,8 +523,7 @@ class KEModel(object):
         try:
             pos_g.edata['n_rels_emb'] = self.relation_emb(pos_g.edata['n_rels'], gpu_id, True)
             pos_g.edata['n_tails_emb'] = self.entity_emb(pos_g.edata['n_tails'], gpu_id, True)
-            pos_g.edata['tails_emb'] = self.entity_emb(pos_g.edata['tails'], gpu_id, True)
-            pos_g.edata['imp'] = pos_g.edata['imp']
+            pos_g.edata['imp'] = pos_g.edata['imp'].to(get_dev(gpu_id))
         except KeyError:
             pass
 
@@ -550,8 +564,14 @@ class KEModel(object):
             pos_score = pos_score.mean()
             neg_score = neg_score.mean()
 
+        if self.has_path:
+            path_score = pos_g.edata['path_score']
+            path_score = logsigmoid(path_score)
+        else:
+            path_score = 0
+
         # compute loss
-        loss = -(pos_score + neg_score) / 2
+        loss = -(pos_score + neg_score + path_score) / 2
 
         log = {'pos_loss': - get_scalar(pos_score),
                'neg_loss': - get_scalar(neg_score),

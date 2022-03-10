@@ -148,7 +148,7 @@ class PTransEScore(nn.Module):
             # PtransE Score
             try:
                 pscore = head + rel + edges.data['n_rels_emb'] - edges.data['n_tails_emb']
-                return {'score': self.gamma - th.norm(score, p=self.dist_ord, dim=-1) - edges.data['imp'] * th.norm(pscore, p=self.dist_ord, dim=-1)}
+                return {'score': self.gamma - th.norm(score, p=self.dist_ord, dim=-1), 'path_score': edges.data['imp'] * th.norm(pscore, p=self.dist_ord, dim=-1)}
             except KeyError:
                 # we are evaluating
                 return {'score': self.gamma - th.norm(score, p=self.dist_ord, dim=-1)}
@@ -219,7 +219,7 @@ class TransRScore(nn.Module):
         else:
             projection = projection.reshape(-1, self.entity_dim)
             g.edata['head_emb'] = g.ndata['emb'][head_ids]*projection
-            g.edata['tail_emb'] = g.ndata['emb'][tail_ids]*projection           
+            g.edata['tail_emb'] = g.ndata['emb'][tail_ids]*projection
 
     def create_neg_prepare(self, neg_head):
         if neg_head:
@@ -317,6 +317,162 @@ class TransRScore(nn.Module):
             def fn(heads, relations, tails, num_chunks, chunk_size, neg_sample_size):
                 relations = relations.reshape(num_chunks, -1, self.relation_dim)
                 tails = tails - relations
+                tails = tails.reshape(num_chunks, -1, 1, self.relation_dim)
+                score = heads - tails
+                return gamma - th.norm(score, p=self.ord, dim=-1)
+            return fn
+        else:
+            def fn(heads, relations, tails, num_chunks, chunk_size, neg_sample_size):
+                relations = relations.reshape(num_chunks, -1, self.relation_dim)
+                heads = heads + relations
+                heads = heads.reshape(num_chunks, -1, 1, self.relation_dim)
+                score = heads - tails
+                return gamma - th.norm(score, p=self.ord, dim=-1)
+            return fn
+
+
+class PTransRScore(nn.Module):
+    """TransR score function
+    Paper link: https://www.aaai.org/ocs/index.php/AAAI/AAAI15/paper/download/9571/9523
+    """
+    def __init__(self, gamma, projection_emb, relation_dim, entity_dim, diag=False,ord=2):
+        super(PTransRScore, self).__init__()
+        self.gamma = gamma
+        self.projection_emb = projection_emb
+        self.relation_dim = relation_dim
+        self.entity_dim = entity_dim
+        self.ord=ord
+        self.diag=diag
+
+    def edge_func(self, edges):
+        head = edges.data['head_emb']
+        tail = edges.data['tail_emb']
+        rel = edges.data['emb']
+        score = head + rel - tail
+        # Path Score
+        try:
+            pscore = (( head + rel ) / edges.data['proj'] ) * edges.data['n_proj'] + edges.data['n_rels_emb'] - edges.data['n_tails_emb'] * edges.data['n_proj']
+            return {'score': self.gamma - th.norm(score, p=self.ord, dim=-1), 'path_score': edges.data['imp'] * th.norm(pscore, p=self.dist_ord, dim=-1)}
+        except KeyError:
+            # we are evaluating
+            return {'score': self.gamma - th.norm(score, p=self.ord, dim=-1)}
+
+    def infer(self, head_emb, rel_emb, tail_emb):
+        pass
+
+    def prepare(self, g, gpu_id, trace=False):
+        head_ids, tail_ids = g.all_edges(order='eid')
+        projection = self.projection_emb(g.edata['id'], gpu_id, trace)
+        n_projection = self.projection_emb(g.edata['n_rels'], gpu_id, trace)
+        if not self.diag:
+            projection = projection.reshape(-1, self.entity_dim, self.relation_dim)
+            g.edata['head_emb'] = th.einsum('ab,abc->ac', g.ndata['emb'][head_ids], projection)
+            g.edata['tail_emb'] = th.einsum('ab,abc->ac', g.ndata['emb'][tail_ids], projection)
+        else:
+            projection = projection.reshape(-1, self.entity_dim)
+            n_projection = n_projection.reshape(-1, self.entity_dim)
+            g.edata['head_emb'] = g.ndata['emb'][head_ids]*projection
+            g.edata['tail_emb'] = g.ndata['emb'][tail_ids]*projection
+            g.edata['proj'] = projection
+            g.edata['n_proj'] = n_projection
+
+
+    def create_neg_prepare(self, neg_head):
+        if neg_head:
+            def fn(rel_id, num_chunks, head, tail, gpu_id, trace=False):
+                # pos node, project to its relation
+                if not self.diag:
+                    projection = self.projection_emb(rel_id, gpu_id, trace)
+                    projection = projection.reshape(num_chunks, -1, self.entity_dim, self.relation_dim)
+                    tail = tail.reshape(num_chunks, -1, 1, self.entity_dim)
+                    tail = th.matmul(tail, projection)
+                    tail = tail.reshape(num_chunks, -1, self.relation_dim)
+                    # neg node, each project to all relations
+                    head = head.reshape(num_chunks, 1, -1, self.entity_dim)
+                    # (num_chunks, num_rel, num_neg_nodes, rel_dim)
+                    head = th.matmul(head, projection)
+                else:
+                    projection = self.projection_emb(rel_id, gpu_id, trace)
+                    projection = projection.reshape(num_chunks, -1, self.entity_dim)
+                    tail = tail.reshape(num_chunks, -1, self.entity_dim)
+                    tail = tail*projection
+                    # neg node, each project to all relations
+                    head = head.reshape(num_chunks, -1, self.entity_dim)
+                    # (num_chunks, num_rel, num_neg_nodes, rel_dim)
+
+                    head = head.reshape(num_chunks, 1, -1, self.entity_dim)  
+                    projection = projection.reshape(num_chunks,-1, 1, self.entity_dim)   
+                    # print(head.size(), projection.size())
+                    head = head*projection  
+                                 
+                return head, tail
+            return fn
+        else:
+            def fn(rel_id, num_chunks, head, tail, gpu_id, trace=False):
+                # pos node, project to its relation
+                if not self.diag:
+                    projection = self.projection_emb(rel_id, gpu_id, trace)
+                    projection = projection.reshape(num_chunks, -1, self.entity_dim, self.relation_dim)
+                    head = head.reshape(num_chunks, -1, 1, self.entity_dim)
+                    head = th.matmul(head, projection)
+                    head = head.reshape(num_chunks, -1, self.relation_dim)
+
+                    # neg node, each project to all relations
+                    tail = tail.reshape(num_chunks, 1, -1, self.entity_dim)
+                    # (num_chunks, num_rel, num_neg_nodes, rel_dim)
+                    tail = th.matmul(tail, projection)
+                else:
+                    projection = self.projection_emb(rel_id, gpu_id, trace)
+                    projection = projection.reshape(num_chunks, -1, self.entity_dim)
+                    head = head.reshape(num_chunks, -1, self.entity_dim)
+                    head = head*projection
+                    # neg node, each project to all relations
+                    tail = tail.reshape(num_chunks, 1, -1, self.entity_dim)
+                    # (num_chunks, num_rel, num_neg_nodes, rel_dim)
+                    projection = projection.reshape(num_chunks,-1, 1, self.entity_dim)   
+                    tail = tail*projection             
+                return head, tail
+            return fn
+
+    def forward(self, g):
+        g.apply_edges(lambda edges: self.edge_func(edges))
+
+    def reset_parameters(self):
+        self.projection_emb.init(1.0)
+
+    def update(self, gpu_id=-1):
+        self.projection_emb.update(gpu_id)
+
+    def save(self, path, name):  
+        self.projection_emb.save(path, name+'projection')
+
+    def load(self, path, name):
+        self.projection_emb.load(path, name+'projection')
+
+    def prepare_local_emb(self, projection_emb):
+        self.global_projection_emb = self.projection_emb
+        self.projection_emb = projection_emb
+
+    def prepare_cross_rels(self, cross_rels):
+        self.projection_emb.setup_cross_rels(cross_rels, self.global_projection_emb)
+
+    def writeback_local_emb(self, idx):
+        self.global_projection_emb.emb[idx] = self.projection_emb.emb.cpu()[idx]
+
+    def load_local_emb(self, projection_emb):
+        device = projection_emb.emb.device
+        projection_emb.emb = self.projection_emb.emb.to(device)
+        self.projection_emb = projection_emb
+
+    def share_memory(self):
+        self.projection_emb.share_memory()  
+
+    def create_neg(self, neg_head):
+        gamma = self.gamma
+        if neg_head:
+            def fn(heads, relations, tails, num_chunks, chunk_size, neg_sample_size):
+                relations = relations.reshape(num_chunks, -1, self.relation_dim)
+                tails = tails + relations
                 tails = tails.reshape(num_chunks, -1, 1, self.relation_dim)
                 score = heads - tails
                 return gamma - th.norm(score, p=self.ord, dim=-1)

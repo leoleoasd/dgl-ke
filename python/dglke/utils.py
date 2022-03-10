@@ -23,6 +23,7 @@ import csv
 import argparse
 import json
 import numpy as np
+import wandb
 
 def get_compatible_batch_size(batch_size, neg_sample_size):
     if neg_sample_size < batch_size and batch_size % neg_sample_size != 0:
@@ -58,6 +59,7 @@ def save_model(args, model, emap_file=None, rmap_file=None):
                    'emap_file':emap_file,
                    'rmap_file':rmap_file},
                    outfile, indent=4)
+    wandb.save(os.path.join(args.save_path, '*'))
 
 def load_model_config(config_f):
     print(config_f)
@@ -212,7 +214,7 @@ class CommonArgParser(argparse.ArgumentParser):
         super(CommonArgParser, self).__init__()
 
         self.add_argument('--model_name', default='TransE',
-                          choices=['TransE', 'TransE_l1', 'TransE_l2', 'TransR', 'PTransE',
+                          choices=['TransE', 'TransE_l1', 'TransE_l2', 'TransR', 'PTransE', 'PTransR',
                                    'RESCAL', 'DistMult', 'ComplEx', 'RotatE'],
                           help='The models provided by DGL-KE.')
         self.add_argument('--data_path', type=str, default='data',

@@ -79,7 +79,7 @@ def prepare_save_path(args):
 def main():
     args = ArgParser().parse_args()
     prepare_save_path(args)
-    wandb.init(project="dgl-ke", entity="leoleoasd", config=args)
+    wandb.init(project="dgl-ke", entity="leoleoasd", config=args, save_code=True)
     args = wandb.config
     
     init_time_start = time.time()
@@ -144,12 +144,12 @@ def main():
             train_samplers.append(NewBidirectionalOneShotIterator(train_sampler_head, train_sampler_tail,
                                                                   args.neg_sample_size, args.neg_sample_size,
                                                                   True, dataset.n_entities,
-                                                                  args.has_edge_importance))
+                                                                  args.has_edge_importance, 'path' in args.format))
 
         train_sampler = NewBidirectionalOneShotIterator(train_sampler_head, train_sampler_tail,
                                                         args.neg_sample_size, args.neg_sample_size,
                                                        True, dataset.n_entities,
-                                                       args.has_edge_importance)
+                                                       args.has_edge_importance, 'path' in args.format)
     else: # This is used for debug
         train_sampler_head = train_data.create_sampler(args.batch_size,
                                                        args.neg_sample_size,
@@ -168,7 +168,7 @@ def main():
         train_sampler = NewBidirectionalOneShotIterator(train_sampler_head, train_sampler_tail,
                                                         args.neg_sample_size, args.neg_sample_size,
                                                         True, dataset.n_entities,
-                                                        args.has_edge_importance)
+                                                        args.has_edge_importance, 'path' in args.format)
 
 
     if args.valid or args.test:
