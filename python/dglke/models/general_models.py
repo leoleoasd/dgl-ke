@@ -252,7 +252,6 @@ class KEModel(object):
                                                 n_relations,
                                                 entity_dim,
                                                 F.cpu() if args.mix_cpu_gpu else device)          
-
             self.score_func = TransRScore(gamma, projection_emb, relation_dim, entity_dim, diag=args.diag, ord=2)
         elif model_name == 'PTransR':
             if not args.diag:

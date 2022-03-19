@@ -207,6 +207,7 @@ class ExternalEmbedding:
         self.trace = []
 
         self.emb = th.empty(num, dim, dtype=th.float32, device=device)
+        self.device = device
         self.state_sum = self.emb.new().resize_(self.emb.size(0)).zero_()
         self.state_step = 0
         self.has_cross_rel = False
@@ -382,4 +383,4 @@ class ExternalEmbedding:
             Embedding name.
         """
         file_name = os.path.join(path, name+'.npy')
-        self.emb = th.Tensor(np.load(file_name))
+        self.emb = th.Tensor(np.load(file_name)).to(self.device)

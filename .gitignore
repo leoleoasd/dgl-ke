@@ -31,6 +31,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+wandb/
+train.sj/
+wikimedia/
 MANIFEST
 
 # PyInstaller
