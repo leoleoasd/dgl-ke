@@ -240,9 +240,12 @@ class KEModel(object):
             self.score_func = TransEScore(gamma, 'l2')
         elif model_name == 'TransE_l1':
             self.score_func = TransEScore(gamma, 'l1')
-        elif model_name == 'PTransE':
+        elif model_name == 'PTransE' or model_name == 'PTransE_l2':
             self.score_func = PTransEScore(gamma, 'l2')
             self.has_path = True
+        elif model_name == 'PTransE_l1':
+            self.score_func = PTransEScore(gamma, 'l2')
+            self.has_path = True       
         elif model_name == 'TransR':
             if not args.diag:
                 projection_emb = ExternalEmbedding(args,
