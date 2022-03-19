@@ -230,6 +230,7 @@ class KEModel(object):
         self.entity_dim = entity_dim
         self.strict_rel_part = args.strict_rel_part
         self.soft_rel_part = args.soft_rel_part
+        self.has_path = False
         if not self.strict_rel_part and not self.soft_rel_part:
             self.relation_emb = ExternalEmbedding(args, n_relations, rel_dim,
                                                   F.cpu() if args.mix_cpu_gpu else device)

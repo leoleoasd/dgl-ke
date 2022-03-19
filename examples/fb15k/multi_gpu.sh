@@ -53,6 +53,16 @@ dglke_train --model_name TransE_l1 --dataset FB15k --batch_size 1000 --log_inter
 --lr 0.01 --batch_size_eval 16 --test -adv --max_step 3000 --mix_cpu_gpu --num_thread 4 \
 --num_proc 8 --gpu 0 1 2 3 4 5 6 7 --async_update --rel_part --force_sync_interval 1000
 
+
+python python/helper.py --model_name PTransE_l1 --dataset FB15k_2r --batch_size 1000 --log_interval 1000 \
+--neg_sample_size 200 --regularization_coef 1e-07 --hidden_dim 400 --gamma 16.0 \
+--lr 0.01 --batch_size_eval 16 --test -adv --max_step 3000 --mix_cpu_gpu --num_thread 4 \
+--num_proc 8 --gpu 0 1 2 3 4 5 6 7 --async_update --rel_part --force_sync_interval 1000 --save_path ./ckpts --data_path ./data/FB15k_2r/ --format raw_udd_path_hrtuv \
+--data_files train.txt_ptranse valid.txt test.txt
+
+
+
+
 ################## Script Result #################
 # training takes 53.92943000793457 seconds
 # -------------- Test result --------------

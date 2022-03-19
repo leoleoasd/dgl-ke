@@ -307,7 +307,7 @@ def RandomPartitionPath(edges, n, has_importance=False):
     if has_importance:
         raise Exception("Not supported")
     else:
-        heads, rels, tails, n_rels, n_tails = edges
+        heads, rels, tails, n_rels, n_tails, n_i = edges
     print('random partition {} edges into {} parts'.format(len(heads), n))
     idx = np.random.permutation(len(heads))
     heads[:] = heads[idx]
@@ -315,6 +315,7 @@ def RandomPartitionPath(edges, n, has_importance=False):
     tails[:] = tails[idx]
     n_rels[:] = n_rels[idx]
     n_tails[:] = n_tails[idx]
+    n_i[:] = n_i[idx]
 
     part_size = int(math.ceil(len(idx) / n))
     parts = []

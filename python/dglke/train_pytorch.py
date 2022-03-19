@@ -229,9 +229,10 @@ def test(args, model, test_samplers, rank=0, mode='Test', queue=None):
     test_samplers[1] = test_samplers[1].reset()
 
 @thread_wrapped_func
-def train_mp(args, model, train_sampler, valid_samplers=None, rank=0, rel_parts=None, cross_rels=None, barrier=None):
+def train_mp(args, model, train_sampler, valid_samplers=None, rank=0, rel_parts=None, cross_rels=None, barrier=None, wandb_group=""):
     if args.num_proc > 1:
         th.set_num_threads(args.num_thread)
+    # wandb.init(group=wandb_group, job_type="eval")
     train(args, model, train_sampler, valid_samplers, rank, rel_parts, cross_rels, barrier)
 
 @thread_wrapped_func

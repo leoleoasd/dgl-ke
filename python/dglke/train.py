@@ -21,6 +21,7 @@ import os
 import logging
 import time
 import wandb
+import datetime
 
 from .dataloader import EvalDataset, TrainDataset, TrainDatasetPath, NewBidirectionalOneShotIterator
 from .dataloader import get_dataset
@@ -79,6 +80,7 @@ def prepare_save_path(args):
 def main():
     args = ArgParser().parse_args()
     prepare_save_path(args)
+    # wandb_group = datetime.datetime.now().isoformat()
     wandb.init(project="dgl-ke", entity="leoleoasd", config=args, save_code=True, allow_val_change=True)
     args = wandb.config
     
@@ -97,16 +99,19 @@ def main():
     args.batch_size_eval = get_compatible_batch_size(args.batch_size_eval, args.neg_sample_size_eval)
     # We should turn on mix CPU-GPU training for multi-GPU training.
     if len(args.gpu) > 1:
-        args.mix_cpu_gpu = True
+        args.update({"mix_cpu_gpu": True}, allow_val_change=True)
+        # args.mix_cpu_gpu = True
         if args.num_proc < len(args.gpu):
-            args.num_proc = len(args.gpu)
+            args.update({"num_proc": len(args.gpu)}, allow_val_change=True)
+            # args.num_proc = len(args.gpu)
     # We need to ensure that the number of processes should match the number of GPUs.
     if len(args.gpu) > 1 and args.num_proc > 1:
         assert args.num_proc % len(args.gpu) == 0, \
                 'The number of processes needs to be divisible by the number of GPUs'
     # For multiprocessing training, we need to ensure that training processes are synchronized periodically.
     if args.num_proc > 1:
-        args.force_sync_interval = 1000
+        args.update({"force_sync_interval": 1000}, allow_val_change=True)
+        # args.force_sync_interval = 1000
 
     args.eval_filter = not args.no_eval_filter
     if args.neg_deg_sample_eval:
@@ -338,7 +343,7 @@ def main():
 
             for metric in logs[0].keys():
                 metrics[metric] = sum([log[metric] for log in logs]) / len(logs)
-            wandb.log(metric)
+            wandb.log(metrics)
             print("-------------- Test result --------------")
             for k, v in metrics.items():
                 print('Test average {} : {}'.format(k, v))
