@@ -352,7 +352,7 @@ class PTransRScore(nn.Module):
         # Path Score
         try:
             pscore = (( head + rel ) / edges.data['proj'] ) * edges.data['n_proj'] + edges.data['n_rels_emb'] - edges.data['n_tails_emb'] * edges.data['n_proj']
-            return {'score': self.gamma - th.norm(score, p=self.ord, dim=-1), 'path_score': edges.data['imp'] * th.norm(pscore, p=self.dist_ord, dim=-1)}
+            return {'score': self.gamma - th.norm(score, p=self.ord, dim=-1), 'path_score': edges.data['imp'] * th.norm(pscore, p=self.ord, dim=-1)}
         except KeyError:
             # we are evaluating
             return {'score': self.gamma - th.norm(score, p=self.ord, dim=-1)}
@@ -363,18 +363,21 @@ class PTransRScore(nn.Module):
     def prepare(self, g, gpu_id, trace=False):
         head_ids, tail_ids = g.all_edges(order='eid')
         projection = self.projection_emb(g.edata['id'], gpu_id, trace)
-        n_projection = self.projection_emb(g.edata['n_rels'], gpu_id, trace)
         if not self.diag:
             projection = projection.reshape(-1, self.entity_dim, self.relation_dim)
             g.edata['head_emb'] = th.einsum('ab,abc->ac', g.ndata['emb'][head_ids], projection)
             g.edata['tail_emb'] = th.einsum('ab,abc->ac', g.ndata['emb'][tail_ids], projection)
         else:
             projection = projection.reshape(-1, self.entity_dim)
-            n_projection = n_projection.reshape(-1, self.entity_dim)
             g.edata['head_emb'] = g.ndata['emb'][head_ids]*projection
             g.edata['tail_emb'] = g.ndata['emb'][tail_ids]*projection
-            g.edata['proj'] = projection
-            g.edata['n_proj'] = n_projection
+            try:
+                n_projection = self.projection_emb(g.edata['n_rels'], gpu_id, trace)
+                n_projection = n_projection.reshape(-1, self.entity_dim)
+                g.edata['proj'] = projection
+                g.edata['n_proj'] = n_projection
+            except KeyError:
+                pass
 
 
     def create_neg_prepare(self, neg_head):
@@ -472,7 +475,7 @@ class PTransRScore(nn.Module):
         if neg_head:
             def fn(heads, relations, tails, num_chunks, chunk_size, neg_sample_size):
                 relations = relations.reshape(num_chunks, -1, self.relation_dim)
-                tails = tails + relations
+                tails = tails - relations
                 tails = tails.reshape(num_chunks, -1, 1, self.relation_dim)
                 score = heads - tails
                 return gamma - th.norm(score, p=self.ord, dim=-1)
@@ -480,7 +483,7 @@ class PTransRScore(nn.Module):
         else:
             def fn(heads, relations, tails, num_chunks, chunk_size, neg_sample_size):
                 relations = relations.reshape(num_chunks, -1, self.relation_dim)
-                heads = heads - relations
+                heads = heads + relations
                 heads = heads.reshape(num_chunks, -1, 1, self.relation_dim)
                 score = heads - tails
                 return gamma - th.norm(score, p=self.ord, dim=-1)

@@ -79,7 +79,7 @@ def prepare_save_path(args):
 def main():
     args = ArgParser().parse_args()
     prepare_save_path(args)
-    wandb.init(project="dgl-ke", entity="leoleoasd", config=args, save_code=True)
+    wandb.init(project="dgl-ke", entity="leoleoasd", config=args, save_code=True, allow_val_change=True)
     args = wandb.config
     
     init_time_start = time.time()

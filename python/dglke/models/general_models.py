@@ -567,6 +567,7 @@ class KEModel(object):
         if self.has_path:
             path_score = pos_g.edata['path_score']
             path_score = logsigmoid(path_score)
+            path_score = path_score.mean()
         else:
             path_score = 0
 

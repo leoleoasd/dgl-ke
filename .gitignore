@@ -1,4 +1,8 @@
 wandb
+data
+ckpts
+wikimedia
+
 # IDE
 .idea
 

@@ -59,7 +59,7 @@ def save_model(args, model, emap_file=None, rmap_file=None):
                    'emap_file':emap_file,
                    'rmap_file':rmap_file},
                    outfile, indent=4)
-    wandb.save(os.path.join(args.save_path, '*'))
+    # wandb.save(os.path.join(args.save_path, '*'))
 
 def load_model_config(config_f):
     print(config_f)

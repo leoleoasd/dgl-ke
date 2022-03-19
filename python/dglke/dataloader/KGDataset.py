@@ -587,7 +587,12 @@ class KGDatasetUDDRawPath(KGDataset):
                     _ = f.readline()
                 for line in f:
                     triple = line.strip().split(self.delimiter)
-                    h, r, t, n_r, n_t, n_i = triple[format[0]], triple[format[1]], triple[format[2]], triple[format[3]], triple[format[4]], triple[5]
+                    try:
+                        h, r, t, n_r, n_t, n_i = triple[format[0]], triple[format[1]], triple[format[2]], triple[format[3]], triple[format[4]], triple[5]
+                    except IndexError:
+                        h, r, t = triple[format[0]], triple[format[1]], triple[format[2]]
+                        n_r, n_t = triple[format[1]], triple[format[2]]
+                        n_i = 0
                     heads.append(self.entity2id[h])
                     rels.append(self.relation2id[r])
                     tails.append(self.entity2id[t])
