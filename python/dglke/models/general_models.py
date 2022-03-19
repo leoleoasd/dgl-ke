@@ -74,8 +74,10 @@ class InferModel(object):
             self.score_func = TransEScore(gamma, 'l2')
         elif model_name == 'TransE_l1':
             self.score_func = TransEScore(gamma, 'l1')
-        elif model_name == 'PTransE':
+        elif model_name == 'PTransE' or model_name == 'PTransE_l2':
             self.score_func = PTransEScore(gamma, 'l2')
+        elif model_name == 'PTransE_l1':
+            self.score_func = PTransEScore(gamma, 'l1')            
         elif model_name == 'TransR':
             assert False, 'Do not support inference of TransR model now.'
         elif model_name == 'DistMult':
