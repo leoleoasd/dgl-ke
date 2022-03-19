@@ -244,7 +244,7 @@ class KEModel(object):
             self.score_func = PTransEScore(gamma, 'l2')
             self.has_path = True
         elif model_name == 'PTransE_l1':
-            self.score_func = PTransEScore(gamma, 'l2')
+            self.score_func = PTransEScore(gamma, 'l1')
             self.has_path = True       
         elif model_name == 'TransR':
             if not args.diag:
