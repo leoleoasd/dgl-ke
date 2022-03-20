@@ -571,13 +571,12 @@ class KEModel(object):
 
         if self.has_path:
             path_score = pos_g.edata['path_score']
-            path_score = logsigmoid(path_score)
             path_score = path_score.mean()
         else:
             path_score = 0
 
         # compute loss
-        loss = -(pos_score + neg_score + path_score) / 2
+        loss = -(pos_score + neg_score) / 2  + path_score
 
         log = {'pos_loss': - get_scalar(pos_score),
                'neg_loss': - get_scalar(neg_score),

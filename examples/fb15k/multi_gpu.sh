@@ -53,16 +53,6 @@ dglke_train --model_name TransE_l1 --dataset FB15k --batch_size 1000 --log_inter
 --lr 0.01 --batch_size_eval 16 --test -adv --max_step 3000 --mix_cpu_gpu --num_thread 4 \
 --num_proc 8 --gpu 0 1 2 3 4 5 6 7 --async_update --rel_part --force_sync_interval 1000
 
-
-python python/helper.py --model_name PTransE_l1 --dataset FB15k_2r --batch_size 1000 --log_interval 1000 \
---neg_sample_size 200 --regularization_coef 1e-07 --hidden_dim 400 --gamma 16.0 \
---lr 0.01 --batch_size_eval 16 --test -adv --max_step 3000 --mix_cpu_gpu --num_thread 4 \
---num_proc 8 --gpu 0 1 2 3 4 5 6 7 --async_update --rel_part --force_sync_interval 1000 --save_path ./ckpts --data_path ./data/FB15k_2r/ --format raw_udd_path_hrtuv \
---data_files train.txt_ptranse valid.txt test.txt
-
-
-
-
 ################## Script Result #################
 # training takes 53.92943000793457 seconds
 # -------------- Test result --------------
@@ -74,6 +64,46 @@ python python/helper.py --model_name PTransE_l1 --dataset FB15k_2r --batch_size 
 # -----------------------------------------
 # testing takes 47.976 seconds
 ##################################################
+
+
+python python/helper.py --model_name PTransE_l1 --dataset FB15k_2r --batch_size 1000 --log_interval 1000 --neg_sample_size 200 --regularization_coef 1e-07 --hidden_dim 400 --gamma 16.0 --lr 0.01 --batch_size_eval 16 --test -adv --max_step 3000 --mix_cpu_gpu --num_thread 4 --num_proc 8 --gpu 0 1 2 3 4 5 6 7 --async_update --force_sync_interval 1000 --save_path ./ckpts --data_path ./data/FB15k_2r/ --format raw_udd_path_hrtuv --data_files train.txt_ptranse valid.txt test.txt --neg_sample_size_eval 10000
+-------------- Test result --------------
+Test average MRR : 0.7005536421765195
+Test average MR : 35.391317228420036
+Test average HITS@1 : 0.5939970543921721
+Test average HITS@3 : 0.7836755768481997
+Test average HITS@10 : 0.8658140204161094
+Test average _timestamp : 1647700452
+Test average _runtime : 425
+-----------------------------------------
+testing takes 67.666 seconds
+
+
+DGLBACKEND=pytorch dglke_train --model_name TransE_l1 --dataset FB15k --batch_size 1000 --log_interval 1000 --neg_sample_size 200 --regularization_coef 1e-07 --hidden_dim 400 --gamma 16.0 --lr 0.01 --batch_size_eval 16 --test -adv --max_step 3000 --mix_cpu_gpu --num_thread 4 --num_proc 8 --gpu 0 1 2 3 4 5 6 7 --force_sync_interval 1000 --save_path ./ckpts0 --data_path ./data/FB15k_2r/ --data_files train.txt valid.txt test.txt --neg_sample_size_eval 10000
+-------------- Test result --------------
+Test average MRR : 0.6931703453772087
+Test average MR : 34.84354420951059
+Test average HITS@1 : 0.5891977450864214
+Test average HITS@3 : 0.7721301484654061
+Test average HITS@10 : 0.8583822857239592
+-----------------------------------------
+testing takes 62.952 seconds
+
+
+DGLBACKEND=pytorch dglke_train --model_name TransE_l1 --dataset FB15k_2r --batch_size 1000 --log_interval 1000 --neg_sample_size 200 --regularization_coef 1e-07 --hidden_dim 400 --gamma 16.0 --lr 0.01 --batch_size_eval 16 --test -adv --max_step 3000 --mix_cpu_gpu --num_thread 4 --num_proc 8 --gpu 0 1 2 3 4 5 6 7 --force_sync_interval 1000 --save_path ./ckpts0 --data_path ./data/FB15k_2r/ --data_files train.txt valid.txt test.txt --neg_sample_size_eval 10000 --format raw_udd_hrt
+-------------- Test result --------------
+Test average MRR : 0.705374239787153
+Test average MR : 33.13465152105094
+Test average HITS@1 : 0.5995581588258198
+Test average HITS@3 : 0.7880093446869022
+Test average HITS@10 : 0.8695552809331144
+-----------------------------------------
+testing takes 69.058 seconds
+
+
+
+
+
 
 # TransE_l1 8 GPU eval
 dglke_eval --model_name TransE_l1 --dataset FB15k --hidden_dim 400 --gamma 16.0 --batch_size_eval 16 \

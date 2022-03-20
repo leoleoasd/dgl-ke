@@ -301,3 +301,5 @@ class CommonArgParser(argparse.ArgumentParser):
                           help='norm used in regularization.')
         self.add_argument('-diag', '--diag', action='store_true',
                           help='diag for Wr of TransR')
+        self.add_argument('-wandb', '--wandb', action='store_true',
+                          help='whether to choose wandb')                          

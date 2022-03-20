@@ -80,8 +80,10 @@ def prepare_save_path(args):
 def main():
     args = ArgParser().parse_args()
     prepare_save_path(args)
-    # wandb_group = datetime.datetime.now().isoformat()
-    wandb.init(project="dgl-ke", entity="leoleoasd", config=args, save_code=True, allow_val_change=True)
+    wandb_group = datetime.datetime.now().isoformat()
+    wandb.require(experiment="service")
+    wandb.setup()
+    wandb.init(project="dgl-ke", entity="leoleoasd", config=args, save_code=True, allow_val_change=True, group=wandb_group)
     args = wandb.config
     
     init_time_start = time.time()
@@ -304,7 +306,8 @@ def main():
                                                      i,
                                                      rel_parts,
                                                      cross_rels,
-                                                     barrier))
+                                                     barrier,
+                                                     wandb_group))
             procs.append(proc)
             proc.start()
         for proc in procs:
