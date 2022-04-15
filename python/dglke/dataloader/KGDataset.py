@@ -439,8 +439,8 @@ class KGDatasetUDDRaw(KGDataset):
                                                   delimiter=delimiter)
         # Train, validation and test set are provided
         elif len(files) == 3:
-            super(KGDatasetUDDRaw, self).__init__("entities.tsv",
-                                                  "relation.tsv",
+            super(KGDatasetUDDRaw, self).__init__(os.path.join(path, "entities.tsv"),
+                                                  os.path.join(path, "relations.tsv"),
                                                   os.path.join(path, files[0]),
                                                   os.path.join(path, files[1]),
                                                   os.path.join(path, files[2]),
@@ -460,14 +460,23 @@ class KGDatasetUDDRaw(KGDataset):
         with open(path) as f:
             if skip_first_line:
                 _ = f.readline()
+            count = 0
             for line in f:
                 triple = line.strip().split(self.delimiter)
                 h, r, t = triple[format[0]], triple[format[1]], triple[format[2]]
-                heads.append(self.entity2id[h])
-                rels.append(self.relation2id[r])
-                tails.append(self.entity2id[t])
+                try:
+                    h = self.entity2id[h]
+                    r = self.relation2id[r]
+                    t = self.entity2id[t]
+                except KeyError:
+                    count += 1
+                    continue
+                heads.append(h)
+                rels.append(r)
+                tails.append(t)
                 if self.has_edge_importance:
                     e_impts.append(float(triple[3]))
+            print(f"File {path} missing {count} triples!")
 
         heads = np.array(heads, dtype=np.int64)
         tails = np.array(tails, dtype=np.int64)

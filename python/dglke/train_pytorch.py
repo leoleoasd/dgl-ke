@@ -39,6 +39,7 @@ from functools import wraps
 import dgl
 from dgl.contrib import KVClient
 import dgl.backend as F
+from tqdm import tqdm
 
 from .dataloader import EvalDataset
 from .dataloader import get_dataset
@@ -211,8 +212,8 @@ def test(args, model, test_samplers, rank=0, mode='Test', queue=None):
 
     with th.no_grad():
         logs = []
-        for sampler in test_samplers:
-            for pos_g, neg_g in sampler:
+        for sampler in tqdm(test_samplers):
+            for pos_g, neg_g in tqdm(sampler):
                 model.forward_test(pos_g, neg_g, logs, gpu_id)
 
         metrics = {}

@@ -96,7 +96,7 @@ def main():
                           args.has_edge_importance)
 
     if args.neg_sample_size_eval < 0:
-        args.neg_sample_size_eval = dataset.n_entities
+        args.update({'neg_sample_size_eval': dataset.n_entities}, allow_val_change=True)
     args.batch_size = get_compatible_batch_size(args.batch_size, args.neg_sample_size)
     args.batch_size_eval = get_compatible_batch_size(args.batch_size_eval, args.neg_sample_size_eval)
     # We should turn on mix CPU-GPU training for multi-GPU training.
