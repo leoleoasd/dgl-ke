@@ -22,6 +22,7 @@ import os
 import logging
 import time
 import pickle
+import wandb
 
 from .utils import get_compatible_batch_size
 
@@ -43,7 +44,7 @@ class ArgParser(argparse.ArgumentParser):
         super(ArgParser, self).__init__()
 
         self.add_argument('--model_name', default='TransE',
-                          choices=['TransE', 'TransE_l1', 'TransE_l2', 'TransR',
+                          choices=['TransE', 'PTransE', 'TransE_l1', 'TransE_l2', 'TransR',
                                    'RESCAL', 'DistMult', 'ComplEx', 'RotatE'],
                           help='The models provided by DGL-KE.')
         self.add_argument('--data_path', type=str, default='data',
@@ -105,6 +106,9 @@ class ArgParser(argparse.ArgumentParser):
 
 def main():
     args = ArgParser().parse_args()
+    wandb.require(experiment="service")
+    wandb.setup()
+    wandb.init(project="dgl-ke", entity="leoleoasd", config=args, save_code=True, allow_val_change=True)
     args.eval_filter = not args.no_eval_filter
     if args.neg_deg_sample_eval:
         assert not args.eval_filter, "if negative sampling based on degree, we can't filter positive edges."

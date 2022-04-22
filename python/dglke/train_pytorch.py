@@ -212,9 +212,14 @@ def test(args, model, test_samplers, rank=0, mode='Test', queue=None):
 
     with th.no_grad():
         logs = []
+        rankks = []
         for sampler in tqdm(test_samplers):
+            ranks = []
             for pos_g, neg_g in tqdm(sampler):
-                model.forward_test(pos_g, neg_g, logs, gpu_id)
+                ranks.append(model.forward_test(pos_g, neg_g, logs, gpu_id))
+            rankks.append(th.cat(ranks))
+        # th.save(rankks, "a.th")
+        # embed()
 
         metrics = {}
         if len(logs) > 0:
