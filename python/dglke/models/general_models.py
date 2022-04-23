@@ -492,6 +492,9 @@ class KEModel(object):
         # the positive edge.
         thrankings = F.sum(neg_scores >= pos_scores, dim=1) + 1
         rankings = F.asnumpy(thrankings)
+        index = neg_scores.argsort(dim=-1)[:, :10].clone()
+        scores = neg_scores[:, index].clone()
+        
         for i in range(batch_size):
             ranking = rankings[i]
             logs.append({
@@ -501,7 +504,7 @@ class KEModel(object):
                 'HITS@3': 1.0 if ranking <= 3 else 0.0,
                 'HITS@10': 1.0 if ranking <= 10 else 0.0
             })
-        return thrankings
+        return thrankings, index, scores
 
     # @profile
     def forward(self, pos_g, neg_g, gpu_id=-1):
