@@ -218,7 +218,7 @@ def test(args, model, test_samplers, rank=0, mode='Test', queue=None):
             for pos_g, neg_g in tqdm(sampler):
                 ranks.append(model.forward_test(pos_g, neg_g, logs, gpu_id))
             rankks.append(th.cat(ranks))
-        # th.save(rankks, "a.th")
+        th.save(rankks, "rankings.pt")
         # embed()
 
         metrics = {}

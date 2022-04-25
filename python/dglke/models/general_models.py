@@ -28,7 +28,6 @@ Graph Embedding Model
 import os
 import numpy as np
 import dgl.backend as F
-import torch.nn.functional
 
 backend = os.environ.get('DGLBACKEND', 'pytorch')
 if backend.lower() == 'mxnet':
@@ -214,7 +213,6 @@ class KEModel(object):
         self.hidden_dim = hidden_dim
         self.eps = EMB_INIT_EPS
         self.emb_init = (gamma + self.eps) / hidden_dim
-        self.gamma = gamma
 
         entity_dim = 2 * hidden_dim if double_entity_emb else hidden_dim
         relation_dim = 2 * hidden_dim if double_relation_emb else hidden_dim
@@ -476,12 +474,12 @@ class KEModel(object):
 
         batch_size = pos_g.number_of_edges()
         pos_scores = self.predict_score(pos_g)
-        pos_scores = reshape((pos_scores), batch_size, -1)
+        pos_scores = reshape(logsigmoid(pos_scores), batch_size, -1)
 
         neg_scores = self.predict_neg_score(pos_g, neg_g, to_device=cuda,
                                             gpu_id=gpu_id, trace=False,
                                             neg_deg_sample=self.args.neg_deg_sample_eval)
-        neg_scores = reshape((neg_scores), batch_size, -1)
+        neg_scores = reshape(logsigmoid(neg_scores), batch_size, -1)
 
         # We need to filter the positive edges in the negative graph.
         if self.args.eval_filter:
@@ -492,7 +490,7 @@ class KEModel(object):
         # To compute the rank of a positive edge among all negative edges,
         # we need to know how many negative edges have higher scores than
         # the positive edge.
-        thrankings = F.sum(neg_scores <= pos_scores, dim=1) + 1
+        thrankings = F.sum(neg_scores >= pos_scores, dim=1) + 1
         rankings = F.asnumpy(thrankings)
         for i in range(batch_size):
             ranking = rankings[i]
@@ -538,7 +536,7 @@ class KEModel(object):
         self.score_func.prepare(pos_g, gpu_id, True)
 
         pos_score = self.predict_score(pos_g)
-        pos_score = (pos_score)
+        pos_score = logsigmoid(pos_score)
         if self.has_edge_importance:
             pos_score = pos_score * F.copy_to(pos_g.edata['impts'], get_dev(gpu_id))
         if gpu_id >= 0:
@@ -553,9 +551,9 @@ class KEModel(object):
         # Adversarial sampling
         if self.args.neg_adversarial_sampling:
             neg_score = F.sum(F.softmax(neg_score * self.args.adversarial_temperature, dim=1).detach()
-                         * (neg_score), dim=1)
+                         * logsigmoid(-neg_score), dim=1)
         else:
-            neg_score = F.mean((neg_score), dim=1)
+            neg_score = F.mean(logsigmoid(-neg_score), dim=1)
 
         # subsampling weight
         # TODO: add subsampling to new sampler
@@ -579,10 +577,10 @@ class KEModel(object):
             path_score = 0
 
         # compute loss
-        loss = functional.relu(pos_score - neg_score + self.gamma) / 2  + path_score
+        loss = -(pos_score + neg_score) / 2  + path_score
 
-        log = {'pos_loss': get_scalar(pos_score),
-               'neg_loss': get_scalar(neg_score),
+        log = {'pos_loss': - get_scalar(pos_score),
+               'neg_loss': - get_scalar(neg_score),
                'loss': get_scalar(loss)}
 
         # regularization: TODO(zihao)

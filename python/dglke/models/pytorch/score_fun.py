@@ -57,14 +57,14 @@ class TransEScore(nn.Module):
         tail = edges.dst['emb']
         rel = edges.data['emb']
         score = head + rel - tail
-        return  {'score': th.norm(score, p=self.dist_ord, dim=-1) }
+        return {'score': self.gamma - th.norm(score, p=self.dist_ord, dim=-1)}
 
     def infer(self, head_emb, rel_emb, tail_emb):
         head_emb = head_emb.unsqueeze(1)
         rel_emb = rel_emb.unsqueeze(0)
         score = (head_emb + rel_emb).unsqueeze(2) - tail_emb.unsqueeze(0).unsqueeze(0)
 
-        return th.norm(score, p=self.dist_ord, dim=-1) # th.norm(score, p=self.dist_ord, dim=-1)
+        return self.gamma - th.norm(score, p=self.dist_ord, dim=-1)
 
     def prepare(self, g, gpu_id, trace=False):
         pass
@@ -97,7 +97,7 @@ class TransEScore(nn.Module):
                 heads = heads.reshape(num_chunks, neg_sample_size, hidden_dim)
                 tails = tails - relations
                 tails = tails.reshape(num_chunks, chunk_size, hidden_dim)
-                return self.neg_dist_func(tails, heads)
+                return gamma - self.neg_dist_func(tails, heads)
             return fn
         else:
             def fn(heads, relations, tails, num_chunks, chunk_size, neg_sample_size):
@@ -105,7 +105,7 @@ class TransEScore(nn.Module):
                 heads = heads + relations
                 heads = heads.reshape(num_chunks, chunk_size, hidden_dim)
                 tails = tails.reshape(num_chunks, neg_sample_size, hidden_dim)
-                return self.neg_dist_func(heads, tails)
+                return gamma - self.neg_dist_func(heads, tails)
             return fn
 
 class PTransEScore(nn.Module):
@@ -127,7 +127,7 @@ class PTransEScore(nn.Module):
         rel_emb = rel_emb.unsqueeze(0)
         score = (head_emb + rel_emb).unsqueeze(2) - tail_emb.unsqueeze(0).unsqueeze(0)
 
-        return th.norm(score, p=self.dist_ord, dim=-1)
+        return self.gamma - th.norm(score, p=self.dist_ord, dim=-1)
 
     def prepare(self, g, gpu_id, trace=False):
         pass
@@ -148,10 +148,10 @@ class PTransEScore(nn.Module):
             # PtransE Score
             try:
                 pscore = head + rel + edges.data['n_rels_emb'] - edges.data['n_tails_emb']
-                return {'score': th.norm(score, p=self.dist_ord, dim=-1), 'path_score': edges.data['imp'] * th.norm(pscore, p=self.dist_ord, dim=-1)}
+                return {'score': self.gamma - th.norm(score, p=self.dist_ord, dim=-1), 'path_score': edges.data['imp'] * th.norm(pscore, p=self.dist_ord, dim=-1)}
             except KeyError:
                 # we are evaluating
-                return {'score': th.norm(score, p=self.dist_ord, dim=-1)}
+                return {'score': self.gamma - th.norm(score, p=self.dist_ord, dim=-1)}
         # embed()
         g.apply_edges(edge_func)
 
@@ -175,7 +175,7 @@ class PTransEScore(nn.Module):
                 heads = heads.reshape(num_chunks, neg_sample_size, hidden_dim)
                 tails = tails - relations
                 tails = tails.reshape(num_chunks, chunk_size, hidden_dim)
-                return self.neg_dist_func(tails, heads)
+                return gamma - self.neg_dist_func(tails, heads)
             return fn
         else:
             def fn(heads, relations, tails, num_chunks, chunk_size, neg_sample_size):
@@ -183,7 +183,7 @@ class PTransEScore(nn.Module):
                 heads = heads + relations
                 heads = heads.reshape(num_chunks, chunk_size, hidden_dim)
                 tails = tails.reshape(num_chunks, neg_sample_size, hidden_dim)
-                return self.neg_dist_func(heads, tails)
+                return gamma - self.neg_dist_func(heads, tails)
             return fn
 
 class TransRScore(nn.Module):
@@ -204,7 +204,7 @@ class TransRScore(nn.Module):
         tail = edges.data['tail_emb']
         rel = edges.data['emb']
         score = head + rel - tail
-        return {'score': th.norm(score, p=self.ord, dim=-1)}
+        return {'score': self.gamma - th.norm(score, p=self.ord, dim=-1)}
 
     def infer(self, head_emb, rel_emb, tail_emb):
         pass
@@ -352,10 +352,10 @@ class PTransRScore(nn.Module):
         # Path Score
         try:
             pscore = (( head + rel ) / edges.data['proj'] ) * edges.data['n_proj'] + edges.data['n_rels_emb'] - edges.data['n_tails_emb'] * edges.data['n_proj']
-            return {'score': th.norm(score, p=self.ord, dim=-1), 'path_score': edges.data['imp'] * th.norm(pscore, p=self.ord, dim=-1)}
-        except KeyError as e:
+            return {'score': self.gamma - th.norm(score, p=self.ord, dim=-1), 'path_score': edges.data['imp'] * th.norm(pscore, p=self.ord, dim=-1)}
+        except KeyError:
             # we are evaluating
-            return {'score': th.norm(score, p=self.ord, dim=-1)}
+            return {'score': self.gamma - th.norm(score, p=self.ord, dim=-1)}
 
     def infer(self, head_emb, rel_emb, tail_emb):
         pass
@@ -478,7 +478,7 @@ class PTransRScore(nn.Module):
                 tails = tails - relations
                 tails = tails.reshape(num_chunks, -1, 1, self.relation_dim)
                 score = heads - tails
-                return th.norm(score, p=self.ord, dim=-1)
+                return gamma - th.norm(score, p=self.ord, dim=-1)
             return fn
         else:
             def fn(heads, relations, tails, num_chunks, chunk_size, neg_sample_size):
@@ -486,7 +486,7 @@ class PTransRScore(nn.Module):
                 heads = heads + relations
                 heads = heads.reshape(num_chunks, -1, 1, self.relation_dim)
                 score = heads - tails
-                return th.norm(score, p=self.ord, dim=-1)
+                return gamma - th.norm(score, p=self.ord, dim=-1)
             return fn
 
 class DistMultScore(nn.Module):
@@ -655,7 +655,7 @@ class RESCALScore(nn.Module):
         score = head * th.matmul(rel, tail).squeeze(-1)
         # TODO: check if use self.gamma
         return {'score': th.sum(score, dim=-1)}
-        # return {'score': th.norm(score, p=1, dim=-1)}
+        # return {'score': self.gamma - th.norm(score, p=1, dim=-1)}
 
     def infer(self, head_emb, rel_emb, tail_emb):
         head_emb = head_emb.unsqueeze(1).unsqueeze(1)
@@ -732,7 +732,7 @@ class RotatEScore(nn.Module):
         im_score = im_score - im_tail
         score = th.stack([re_score, im_score], dim=0)
         score = score.norm(dim=0)
-        return {'score': score.sum(-1)}
+        return {'score': self.gamma - score.sum(-1)}
 
     def infer(self, head_emb, rel_emb, tail_emb):
         re_head, im_head = th.chunk(head_emb, 2, dim=-1)
@@ -747,7 +747,7 @@ class RotatEScore(nn.Module):
         im_score = im_score.unsqueeze(2) - im_tail.unsqueeze(0).unsqueeze(0)
         score = th.stack([re_score, im_score], dim=0)
         score = score.norm(dim=0)
-        return score.sum(-1)
+        return self.gamma - score.sum(-1)
 
     def update(self, gpu_id=-1):
         pass
