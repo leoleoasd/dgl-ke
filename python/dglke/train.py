@@ -23,7 +23,7 @@ import time
 import wandb
 import datetime
 
-from .dataloader import EvalDataset, TrainDataset, TrainDatasetPath, NewBidirectionalOneShotIterator
+from .dataloader import EvalDataset, TrainDataset, TrainDatasetPath, TrainDatasetHop, NewBidirectionalOneShotIterator
 from .dataloader import get_dataset
 from .train_pytorch import load_model_from_checkpoint
 from .utils import get_compatible_batch_size, save_model, CommonArgParser
@@ -122,7 +122,8 @@ def main():
     args.soft_rel_part = args.mix_cpu_gpu and args.rel_part
     if 'path' in args.format:
         train_data = TrainDatasetPath(dataset, args, ranks=args.num_proc, has_importance=args.has_edge_importance)
-        # embed()
+    elif 'hop' in args.format:
+        train_data = TrainDatasetHop(dataset, args, ranks=args.num_proc, has_importance=args.has_edge_importance)
     else:
         train_data = TrainDataset(dataset, args, ranks=args.num_proc, has_importance=args.has_edge_importance)
     # if there is no cross partition relaiton, we fall back to strict_rel_part
@@ -151,12 +152,14 @@ def main():
             train_samplers.append(NewBidirectionalOneShotIterator(train_sampler_head, train_sampler_tail,
                                                                   args.neg_sample_size, args.neg_sample_size,
                                                                   True, dataset.n_entities,
-                                                                  args.has_edge_importance, 'path' in args.format))
+                                                                  args.has_edge_importance, 'path' in args.format,
+                                                                  'hop' in args.format))
 
         train_sampler = NewBidirectionalOneShotIterator(train_sampler_head, train_sampler_tail,
                                                         args.neg_sample_size, args.neg_sample_size,
                                                        True, dataset.n_entities,
-                                                       args.has_edge_importance, 'path' in args.format)
+                                                       args.has_edge_importance, 'path' in args.format,
+                                                       'hop' in args.format)
     else: # This is used for debug
         train_sampler_head = train_data.create_sampler(args.batch_size,
                                                        args.neg_sample_size,
@@ -175,7 +178,8 @@ def main():
         train_sampler = NewBidirectionalOneShotIterator(train_sampler_head, train_sampler_tail,
                                                         args.neg_sample_size, args.neg_sample_size,
                                                         True, dataset.n_entities,
-                                                        args.has_edge_importance, 'path' in args.format)
+                                                        args.has_edge_importance, 'path' in args.format,
+                                                        'hop' in args.format)
 
 
     if args.valid or args.test:

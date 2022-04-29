@@ -550,7 +550,7 @@ class KGDatasetUDDRawPath(KGDataset):
         
         # assert len(format) == 3
         format = _parse_srd_format(format)
-        self.load_entity_relation(path, delimiter, files, format)
+        # self.load_entity_relation(path, delimiter, files, format)
 
         assert len(files) == 1 or len(files) == 3, 'raw_udd_{htr} format requires 1 or 3 input files. '\
                 'When 1 files are provided, they must be train_file. '\
@@ -675,6 +675,182 @@ class KGDatasetUDDRawPath(KGDataset):
                         dst_id = _get_id(entity_map, p_dst)
                         rel_id = _get_id(rel_map, rel)
                         rel_id = _get_id(rel_map, p_rel)
+
+        entities = ["{}{}{}\n".format(val, delimiter, key) for key, val in entity_map.items()]
+        with open(os.path.join(path, "entities.tsv"), "w+") as f:
+            f.writelines(entities)
+        self.entity2id = entity_map
+        self.n_entities = len(entities)
+
+        relations = ["{}{}{}\n".format(val, delimiter, key) for key, val in rel_map.items()]
+        with open(os.path.join(path, "relations.tsv"), "w+") as f:
+            f.writelines(relations)
+        self.relation2id = rel_map
+        self.n_relations = len(relations)
+
+    def read_entity(self, entity_path):
+        return self.entity2id, self.n_entities
+
+    def read_relation(self, relation_path):
+        return self.relation2id, self.n_relations
+
+    @property
+    def emap_fname(self):
+        return 'entities.tsv'
+
+    @property
+    def rmap_fname(self):
+        return 'relations.tsv'
+
+
+class KGDatasetUDDRawHop(KGDataset):
+    '''Load a knowledge graph user defined dataset with path
+
+    The user defined dataset has five files:
+    * entities stores the mapping between entity name and entity Id.
+    * relations stores the mapping between relation name relation Id.
+    * train stores the triples in the training set. In format [src_name, rel_name, dst_name, rel2_name, dst2_name]
+    * valid stores the triples in the validation set. In format [src_name, rel_name, dst_name]
+    * test stores the triples in the test set. In format [src_name, rel_name, dst_name]
+
+    The mapping between entity (relation) name and entity (relation) Id is stored as 'name\tid'.
+    The triples are stored as 'head_nid\trelation_id\ttail_nid'. Users can also use other delimiters
+    other than \t.
+    '''
+    def __init__(self, path, name, delimiter, files, format, has_edge_importance=False):
+        self.name = name
+        for f in files:
+            assert os.path.exists(os.path.join(path, f)), \
+                'File {} not exist in {}'.format(f, path)
+        
+        # assert len(format) == 3
+        format = _parse_srd_format(format)
+        self.load_entity_relation(path, delimiter, files, format)
+
+        assert len(files) == 1 or len(files) == 3, 'raw_udd_{htr} format requires 1 or 3 input files. '\
+                'When 1 files are provided, they must be train_file. '\
+                'When 3 files are provided, they must be train_file, valid_file and test_file.'
+
+        if delimiter not in ['\t', '|', ',',';']:
+            print('WARNING: delimiter {} is not in \'\\t\', \'|\', \',\', \';\'' \
+                  'This is not tested by the developer'.format(delimiter))
+        self.has_edge_importance = has_edge_importance
+        # Only train set is provided
+        if len(files) == 1:
+            super(KGDatasetUDDRawHop, self).__init__("entities.tsv",
+                                                  "relation.tsv",
+                                                  os.path.join(path, files[0]),
+                                                  format=format,
+                                                  delimiter=delimiter)
+        # Train, validation and test set are provided
+        elif len(files) == 3:
+            super(KGDatasetUDDRawHop, self).__init__("entities.tsv",
+                                                  "relation.tsv",
+                                                  os.path.join(path, files[0]),
+                                                  os.path.join(path, files[1]),
+                                                  os.path.join(path, files[2]),
+                                                  format=format,
+                                                  delimiter=delimiter)
+
+    def read_triple(self, path, mode, skip_first_line=False, format=[0,1,2]):
+        # mode: train/valid/test
+        if path is None:
+            return None
+
+        print('Reading {} triples....'.format(mode))
+        if mode == "train":
+            heads = []
+            tails = []
+            rels = []
+            e_impts = []
+            paths = []
+            imps = []
+            with open(path) as f:
+                if skip_first_line:
+                    _ = f.readline()
+                for line in f:
+                    triple = line.strip().split(self.delimiter)
+                    h, r, t = triple[format[0]], triple[format[1]], triple[format[2]]
+                    path = []
+                    imp = []
+                    if len(triple) > 3:
+                        for i in range(3, len(triple), 3):
+                            r1, r2, im = triple[i], triple[i+1], triple[i+2]
+                            path.append((self.relation2id[r1], self.relation2id[r2]))
+                            imp.append(im)
+                    heads.append(self.entity2id[h])
+                    rels.append(self.relation2id[r])
+                    tails.append(self.entity2id[t])
+                    paths.append(path)
+                    imps.append(imp)
+                    if self.has_edge_importance:
+                        e_impts.append(float(triple[3]))
+            heads = np.array(heads, dtype=np.int64)
+            tails = np.array(tails, dtype=np.int64)
+            rels = np.array(rels, dtype=np.int64)
+            paths = np.array(paths, dtype=np.int64)
+            imps = np.array(imps, dtype=np.float64)
+            
+            print('Finished. Read {} {} triples.'.format(len(heads), mode))
+            if self.has_edge_importance:
+                print("NOT SUPPORTED")
+                raise Exception("edge importance on P_transe isn't supported")
+                e_impts = np.array(e_impts, dtype=np.float)
+                assert np.min(e_impts) > 0., 'Edge importance score should > 0'
+                return (heads, rels, tails, e_impts)
+
+            return (heads, rels, tails, paths, imps)
+        else:
+            heads = []
+            tails = []
+            rels = []
+            e_impts = []
+            with open(path) as f:
+                if skip_first_line:
+                    _ = f.readline()
+                for line in f:
+                    triple = line.strip().split(self.delimiter)
+                    h, r, t = triple[format[0]], triple[format[1]], triple[format[2]]
+                    heads.append(self.entity2id[h])
+                    rels.append(self.relation2id[r])
+                    tails.append(self.entity2id[t])
+                    if self.has_edge_importance:
+                        e_impts.append(float(triple[3]))
+
+            heads = np.array(heads, dtype=np.int64)
+            tails = np.array(tails, dtype=np.int64)
+            rels = np.array(rels, dtype=np.int64)
+
+            print('Finished. Read {} {} triples.'.format(len(heads), mode))
+            if self.has_edge_importance:
+                e_impts = np.array(e_impts, dtype=np.float)
+                assert np.min(e_impts) > 0., 'Edge importance score should > 0'
+                return (heads, rels, tails, e_impts)
+
+            return (heads, rels, tails)
+
+    def load_entity_relation(self, path, delimiter, files, format):
+        entity_map = {}
+        rel_map = {}
+        for fi in files:
+            with open(os.path.join(path, fi)) as f:
+                for line in f:
+                    triple = line.strip().split(delimiter)
+                    # if len(triple) == 3:
+                    src, rel, dst = triple[format[0]], triple[format[1]], triple[format[2]]
+                    src_id = _get_id(entity_map, src)
+                    dst_id = _get_id(entity_map, dst)
+                    rel_id = _get_id(rel_map, rel)
+                    # else:
+                    #     src, rel, dst = triple[format[0]], triple[format[1]], triple[format[2]]
+                    #     src_id = _get_id(entity_map, src)
+                    #     dst_id = _get_id(entity_map, dst)
+                    #     rel_id = _get_id(rel_map, rel)
+                    #     if len(triple) > 3:
+                    #         for i in range(3, len(triple), 3):
+                    #             r1, r2, im = triple[i], triple[i + 1], triple[i + 2]
+                    #             _get_id(rel_map, r1)
+                    #             _get_id(rel_map, r2)
 
         entities = ["{}{}{}\n".format(val, delimiter, key) for key, val in entity_map.items()]
         with open(os.path.join(path, "entities.tsv"), "w+") as f:
@@ -835,6 +1011,13 @@ def get_dataset(data_path, data_name, format_str, delimiter='\t', files=None, ha
         format = format_str[13:]
         print(f"{format:}")
         dataset = KGDatasetUDDRawPath(data_path, data_name, delimiter, files, format, has_edge_importance)
+    elif format_str.startswith('raw_udd_hop'):
+        # user defined dataset
+        assert data_name != 'FB15k', 'You should provide the dataset name for raw_udd format.'
+        assert has_edge_importance == False, 'Edge importance on path isn`t supported'
+        format = format_str[12:]
+        print(f"{format:}")
+        dataset = KGDatasetUDDRawHop(data_path, data_name, delimiter, files, format, has_edge_importance)
     elif format_str.startswith('raw_udd'):
         # user defined dataset
         assert data_name != 'FB15k', 'You should provide the dataset name for raw_udd format.'

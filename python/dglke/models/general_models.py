@@ -231,6 +231,7 @@ class KEModel(object):
         self.strict_rel_part = args.strict_rel_part
         self.soft_rel_part = args.soft_rel_part
         self.has_path = False
+        self.has_hop = False
         if not self.strict_rel_part and not self.soft_rel_part:
             self.relation_emb = ExternalEmbedding(args, n_relations, rel_dim,
                                                   F.cpu() if args.mix_cpu_gpu else device)
@@ -246,7 +247,10 @@ class KEModel(object):
             self.has_path = True
         elif model_name == 'PTransE_l1':
             self.score_func = PTransEScore(gamma, 'l1')
-            self.has_path = True       
+            self.has_path = True
+        elif model_name == 'PTransEHop':
+            self.score_func = PTransEHopScore(gamma, 'l2')
+            self.has_hop = True
         elif model_name == 'TransR':
             if not args.diag:
                 projection_emb = ExternalEmbedding(args,
@@ -529,12 +533,8 @@ class KEModel(object):
         # embed()
         pos_g.ndata['emb'] = self.entity_emb(pos_g.ndata['id'], gpu_id, True)
         pos_g.edata['emb'] = self.relation_emb(pos_g.edata['id'], gpu_id, True)
-        try:
-            pos_g.edata['n_rels_emb'] = self.relation_emb(pos_g.edata['n_rels'], gpu_id, True)
-            pos_g.edata['n_tails_emb'] = self.entity_emb(pos_g.edata['n_tails'], gpu_id, True)
-            pos_g.edata['imp'] = pos_g.edata['imp'].to(get_dev(gpu_id))
-        except KeyError:
-            pass
+        if self.has_hop:
+            pos_g.edata['paths_emb'] = self.relation_emb(pos_g.edata['paths'], gpu_id, False)
 
         self.score_func.prepare(pos_g, gpu_id, True)
 
@@ -579,8 +579,13 @@ class KEModel(object):
         else:
             path_score = 0
 
+        if self.has_hop:
+            hop_score = pos_g.edata['hop_score']
+            hop_score = hop_score.mean()
+        else:
+            hop_score = 0
         # compute loss
-        loss = -(pos_score + neg_score) / 2  + path_score
+        loss = -(pos_score + neg_score) / 2 + path_score + hop_score
 
         log = {'pos_loss': - get_scalar(pos_score),
                'neg_loss': - get_scalar(neg_score),

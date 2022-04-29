@@ -326,6 +326,42 @@ def RandomPartitionPath(edges, n, has_importance=False):
         print('part {} has {} edges'.format(i, len(parts[-1])))
     return parts
 
+def RandomPartitionHop(edges, n, has_importance=False):
+    """This partitions a list of edges randomly across n partitions
+
+    Parameters
+    ----------
+    edges : (heads, rels, tails, n_rel, n_tails) triple
+        Edge list to partition
+    n : int
+        number of partitions
+
+    Returns
+    -------
+    List of np.array
+        Edges of each partition
+    """
+    if has_importance:
+        raise Exception("Not supported")
+    else:
+        heads, rels, tails, paths, imps = edges
+    print('random partition {} edges into {} parts'.format(len(heads), n))
+    idx = np.random.permutation(len(heads))
+    heads[:] = heads[idx]
+    rels[:] = rels[idx]
+    tails[:] = tails[idx]
+    paths[:] = paths[idx]
+    imps[:] = imps[idx]
+
+    part_size = int(math.ceil(len(idx) / n))
+    parts = []
+    for i in range(n):
+        start = part_size * i
+        end = min(part_size * (i + 1), len(idx))
+        parts.append(idx[start:end])
+        print('part {} has {} edges'.format(i, len(parts[-1])))
+    return parts
+
 def ConstructGraph(edges, n_entities, args):
     """Construct Graph for training
 
@@ -371,6 +407,28 @@ def ConstructGraphPath(edges, n_entities, args):
     g.edata['n_tails'] = F.tensor(n_tails, F.int64)
     g.edata['tails'] = F.tensor(dst, F.int64)
     g.edata['imp'] = F.tensor(n_i, F.float32)
+    return g
+
+def ConstructGraphHop(edges, n_entities, args):
+    """Construct Graph for training
+
+    Parameters
+    ----------
+    edges : (heads, rels, tails, n_rels, n_tails) triple
+        Edge list
+    n_entities : int
+        number of entities
+    args :
+        Global configs.
+    """
+    h, r, t, paths, imps = edges
+    coo = sp.sparse.coo_matrix((np.ones(len(h)), (h, t)), shape=[n_entities, n_entities])
+    # from IPython import embed
+    # embed()
+    g = dgl.DGLGraph(coo, readonly=True, multigraph=True, sort_csr=False)
+    g.edata['tid'] = F.tensor(r, F.int64)
+    g.edata['imps'] = F.tensor(imps, F.float32)
+    g.edata['paths'] = F.tensor(paths, F.int64)
     return g
 
 class TrainDataset(object):
@@ -479,6 +537,85 @@ class TrainDatasetPath(object):
             self.cross_part = False
 
         self.g = ConstructGraphPath(triples, dataset.n_entities, args)
+        # self.g_2 = ConstructGraph(triples[2:5], dataset.n_entities, args)
+
+    def create_sampler(self, batch_size, neg_sample_size=2, neg_chunk_size=None, mode='head', num_workers=32,
+                       shuffle=True, exclude_positive=False, rank=0):
+        """Create sampler for training
+
+        Parameters
+        ----------
+        batch_size : int
+            Batch size of each mini batch.
+        neg_sample_size : int
+            How many negative edges sampled for each node.
+        neg_chunk_size : int
+            How many edges in one chunk. We split one batch into chunks.
+        mode : str
+            Sampling mode.
+        number_workers: int
+            Number of workers used in parallel for this sampler
+        shuffle : bool
+            If True, shuffle the seed edges.
+            If False, do not shuffle the seed edges.
+            Default: False
+        exclude_positive : bool
+            If True, exlucde true positive edges in sampled negative edges
+            If False, return all sampled negative edges even there are positive edges
+            Default: False
+        rank : int
+            Which partition to sample.
+
+        Returns
+        -------
+        dgl.contrib.sampling.EdgeSampler
+            Edge sampler
+        """
+        EdgeSampler = getattr(dgl.contrib.sampling, 'EdgeSampler')
+        assert batch_size % neg_sample_size == 0, 'batch_size should be divisible by B'
+        return EdgeSampler(self.g,
+                           seed_edges=F.tensor(self.edge_parts[rank]),
+                           batch_size=batch_size,
+                           neg_sample_size=int(neg_sample_size/neg_chunk_size),
+                           chunk_size=neg_chunk_size,
+                           negative_mode=mode,
+                           num_workers=num_workers,
+                           shuffle=shuffle,
+                           exclude_positive=exclude_positive,
+                           return_false_neg=False)
+
+class TrainDatasetHop(object):
+    """Dataset for training
+
+    Parameters
+    ----------
+    dataset : KGDatasetUDDRawHop
+        Original dataset.
+    args :
+        Global configs.
+    ranks:
+        Number of partitions.
+    """
+    def __init__(self, dataset, args, ranks=64, has_importance=False):
+        triples = dataset.train
+        num_train = len(triples[0])
+        print('|Train|:', num_train)
+
+        if ranks > 1 and args.rel_part:
+            raise Exception("Rel_PART on PTransE isn't supported")
+            # self.edge_parts, self.rel_parts, self.cross_part, self.cross_rels = \
+            # SoftRelationPartition(triples, ranks, has_importance=has_importance)
+        elif ranks > 1:
+            # TODO
+            self.edge_parts = RandomPartitionHop(triples, ranks, has_importance=has_importance)
+            self.cross_part = True
+        else:
+            # TODO
+            self.edge_parts = [np.arange(num_train)]
+            self.rel_parts = [np.arange(dataset.n_relations)]
+            self.cross_part = False
+
+        self.g = ConstructGraphHop(triples, dataset.n_entities, args)
         # self.g_2 = ConstructGraph(triples[2:5], dataset.n_entities, args)
 
     def create_sampler(self, batch_size, neg_sample_size=2, neg_chunk_size=None, mode='head', num_workers=32,
@@ -836,15 +973,15 @@ class NewBidirectionalOneShotIterator:
         Total number of nodes in the whole graph.
     """
     def __init__(self, dataloader_head, dataloader_tail, neg_chunk_size, neg_sample_size,
-                 is_chunked, num_nodes, has_edge_importance=False, has_path=False):
+                 is_chunked, num_nodes, has_edge_importance=False, has_path=False, has_hop=False):
         self.sampler_head = dataloader_head
         self.sampler_tail = dataloader_tail
         self.iterator_head = self.one_shot_iterator(dataloader_head, neg_chunk_size,
                                                     neg_sample_size, is_chunked,
-                                                    True, num_nodes, has_edge_importance, has_path)
+                                                    True, num_nodes, has_edge_importance, has_path,has_hop)
         self.iterator_tail = self.one_shot_iterator(dataloader_tail, neg_chunk_size,
                                                     neg_sample_size, is_chunked,
-                                                    False, num_nodes, has_edge_importance, has_path)
+                                                    False, num_nodes, has_edge_importance, has_path,has_hop)
         self.step = 0
 
     def __next__(self):
@@ -857,7 +994,7 @@ class NewBidirectionalOneShotIterator:
 
     @staticmethod
     def one_shot_iterator(dataloader, neg_chunk_size, neg_sample_size, is_chunked,
-                          neg_head, num_nodes, has_edge_importance=False, has_path=False):
+                          neg_head, num_nodes, has_edge_importance=False, has_path=False, has_hop=False):
         while True:
             for pos_g, neg_g in dataloader:
                 neg_g = create_neg_subgraph(pos_g, neg_g, neg_chunk_size, neg_sample_size,
@@ -873,6 +1010,9 @@ class NewBidirectionalOneShotIterator:
                     pos_g.edata['n_tails'] = pos_g._parent.edata['n_tails'][pos_g.parent_eid]
                     pos_g.edata['tails'] = pos_g._parent.edata['tails'][pos_g.parent_eid]
                     pos_g.edata['imp'] = pos_g._parent.edata['imp'][pos_g.parent_eid]
+                if has_hop:
+                    pos_g.edata['paths'] = pos_g._parent.edata['paths'][pos_g.parent_eid]
+                    pos_g.edata['imps'] = pos_g._parent.edata['imps'][pos_g.parent_eid]
                 if has_edge_importance:
                     pos_g.edata['impts'] = pos_g._parent.edata['impts'][pos_g.parent_eid]
                 yield pos_g, neg_g
