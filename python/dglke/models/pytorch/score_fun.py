@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as functional
@@ -225,16 +225,10 @@ class PTransEHopScore(nn.Module):
             score = head + rel - tail
             # PtransE Score
             try:
-                # [batch_size, path_size, 2, hidden_dim]
-                print(edges.data['paths_emb'].shape)
-                # [batch_size, hidden_dim]
-                print(head.shape)
-                # pscore = head + rel + edges.data['n_rels_emb'] - edges.data['n_tails_emb']
-                hop_score = head[:, None, :] + edges.data['paths_emb'][:,:,0] + edges.data['paths_emb'][:,:,1] - tail[:, None, :] 
-                print(f"{hop_score.shape=}")
-                hop_score = hop_score.mean(dim=1)
+                hop_score = head[:, None, :] + edges.data['paths_emb'][:,:,0] + edges.data['paths_emb'][:,:,1] - tail[:, None, :]
+                hop_score = (edges.data['imps'].unsqueeze(-1) * hop_score).mean(dim=-1)
                 return {'score': self.gamma - th.norm(score, p=self.dist_ord, dim=-1),
-                        'hop_score': edges.data['imps'] * th.norm(hop_score, p=self.dist_ord, dim=-1)}
+                        'hop_score': th.norm(hop_score, p=self.dist_ord, dim=-1)}
             except KeyError:
                 # we are evaluating
                 return {'score': self.gamma - th.norm(score, p=self.dist_ord, dim=-1)}

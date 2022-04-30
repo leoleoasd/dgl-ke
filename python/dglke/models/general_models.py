@@ -497,8 +497,7 @@ class KEModel(object):
         thrankings = F.sum(neg_scores >= pos_scores, dim=1) + 1
         rankings = F.asnumpy(thrankings)
         index = neg_scores.argsort(dim=-1)[:, :10].clone()
-        scores = neg_scores[:, index].clone()
-        
+        scores = neg_scores.gather(1, index)
         for i in range(batch_size):
             ranking = rankings[i]
             logs.append({
@@ -535,6 +534,7 @@ class KEModel(object):
         pos_g.edata['emb'] = self.relation_emb(pos_g.edata['id'], gpu_id, True)
         if self.has_hop:
             pos_g.edata['paths_emb'] = self.relation_emb(pos_g.edata['paths'], gpu_id, False)
+            pos_g.edata['imps'] = F.copy_to(pos_g.edata['imps'], get_dev(gpu_id))
 
         self.score_func.prepare(pos_g, gpu_id, True)
 
